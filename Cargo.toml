@@ -1,0 +1,7 @@
+[package]
+name = "lexpar"
+version = "0.1.0"
+authors = ["Delyan Dobrev <delqn.dobrev@gmail.com>"]
+
+[dependencies]
+regex = "0.2"
