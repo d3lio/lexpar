@@ -1,7 +1,6 @@
 //! The `Lexer` module holding structures for parsing source tokens.
 
 use std::rc::Rc;
-use std::borrow::Borrow;
 
 use regex::Regex;
 
@@ -27,11 +26,10 @@ pub struct Span {
     pub line: usize
 }
 
-// TODO(low) remove this in favour of lifetimes.
-struct LexerInternal<T> {
+struct LexerInternal<'a, T> {
     matcher: Regex,
-    arms: Vec<Box<for<'a> Fn(&'a str, Span) -> T>>,
-    unknown: Box<for<'a> Fn(&'a str, Span) -> T>
+    arms: Vec<Box<Fn(&'a str, Span) -> T>>,
+    unknown: Box<Fn(&'a str, Span) -> T>
 }
 
 /// Generic token lexer
@@ -71,8 +69,8 @@ struct LexerInternal<T> {
 /// ], |_, _| panic!("unknown"));
 /// # }
 /// ```
-pub struct Lexer<T> {
-    internal: Rc<LexerInternal<T>>
+pub struct Lexer<'a, T> {
+    internal: Rc<LexerInternal<'a, T>>
 }
 
 /// Token `Iterator` over a given source.
@@ -82,17 +80,17 @@ pub struct Lexer<T> {
 /// This is the structure that operates over the source and matches the tokens.
 /// As an ordinary `Iterator` invoking next will give you the next element of type T, presumably a
 /// token or a structure containing the token.
-pub struct LexerIter<T> {
-    internal: Rc<LexerInternal<T>>,
-    src: String,
+pub struct LexerIter<'a, 'b,  T> {
+    internal: Rc<LexerInternal<'a, T>>,
+    src: &'b str,
     pos: usize,
     line: usize
 }
 
-impl<T> Lexer<T> {
+impl<'a, T> Lexer<'a, T> {
     /// Create a new lexer with the given `rules` and `unknown` token callback.
-    pub fn new<F>(rules: Vec<(&str, Box<for<'a> Fn(&'a str, Span) -> T>)>, unknown: F) -> Self
-    where F: 'static + for<'a> Fn(&'a str, Span) -> T {
+    pub fn new<F>(rules: Vec<(&str, Box<Fn(&'a str, Span) -> T>)>, unknown: F) -> Self
+    where F: 'static + Fn(&'a str, Span) -> T {
         if rules.is_empty() {
             panic!("Empty rules set");
         }
@@ -120,17 +118,17 @@ impl<T> Lexer<T> {
     }
 
     /// Create a token iterator out of a given source.
-    pub fn src_iter<S: Borrow<str>>(&self, src: S) -> LexerIter<T> {
+    pub fn src_iter<'b: 'a>(&self, src: &'b str) -> LexerIter<'a, 'b, T> {
         LexerIter {
             internal: self.internal.clone(),
-            src: src.borrow().to_owned(),
+            src: src,
             pos: 0,
             line: 0
         }
     }
 }
 
-impl<T> Iterator for LexerIter<T> {
+impl<'a, 'b: 'a, T> Iterator for LexerIter<'a, 'b, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
