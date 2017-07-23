@@ -55,8 +55,8 @@ struct LexerInternal<T> {
 ///
 /// ```
 /// # #[macro_use]
-/// # extern crate flow;
-/// # use flow::lexer::*;
+/// # extern crate lexpar;
+/// # use lexpar::lexer::*;
 /// enum Token {
 ///     Snake(String),
 ///     Int(u32)
