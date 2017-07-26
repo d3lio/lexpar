@@ -1,4 +1,4 @@
-//! The `Lexer` module holding structures for parsing source tokens.
+//! The `Lexer` module holds structures for parsing source into tokens.
 
 use std::rc::Rc;
 use std::borrow::Borrow;
@@ -17,7 +17,7 @@ macro_rules! lex_rules {
 ///
 /// The `Span` holds a lo-hi position range as [lo, hi) and the line at which the match begins
 /// to allow better error messages.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Span {
     /// The position of the first char of the match.
     pub lo: usize,
@@ -25,6 +25,16 @@ pub struct Span {
     pub hi: usize,
     /// The line on which the span starts i.e. the line which contains the `lo`th symbol.
     pub line: usize
+}
+
+impl Span {
+    pub fn new(lo: usize, hi: usize, line: usize) -> Self {
+        Self {
+            lo: lo,
+            hi: hi,
+            line: line
+        }
+    }
 }
 
 // TODO(low) remove this in favour of lifetimes.
@@ -49,7 +59,11 @@ struct LexerInternal<T> {
 /// matching after an error. The former behavior is more common as the only purpose of returning
 /// a special errorneus token would be for generating better errors.
 ///
-/// The `Lexer` is just a builder for `LexerIter`s which do the actual work.
+/// # Notes
+///
+/// * The `Lexer` is just a builder for `LexerIter`s which do the actual work.
+/// * Avoid capture groups inside the rules since this will cause the lexer to lookup in the wrong
+/// capture group. Instead use non capture groups `(?:)`.
 ///
 /// # Examples
 ///

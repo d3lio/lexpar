@@ -3,3 +3,5 @@
 extern crate regex;
 
 pub mod lexer;
+pub mod parser;
+pub mod parser_macro;
