@@ -11,10 +11,10 @@
 ///
 /// Constraints:
 ///
-/// * The term type must be `Clone` or you'll into some issues with references.
+/// * The term type must be `Clone` or you'll run into some issues with references.
 /// * The nonterm type must derive `PartialEq, Eq, Hash`.
 ///
-/// Crude example syntax:
+/// ### Crude example syntax
 ///
 /// ```ignore
 ///
@@ -28,6 +28,9 @@
 ///
 /// #[derive(Debug, PartialEq, Eq, Hash)]
 /// enum Nt { E, I, P, H }
+///
+/// use Token::*;
+/// use Nt::*;
 ///
 /// parse_rules! {
 ///     term: Token;
@@ -47,26 +50,71 @@
 /// ```
 #[macro_export]
 macro_rules! parse_rules {
+    // Full definition.
+    // Unexpected and Eof are closures to prevent unexpected behaviour when using return.
+    {
+        parser: $parser: ident;
+        term: $term_type: ty;
+        unexpected: $unexpected: expr;
+        eof: $eof: expr;
+        $($nonterm_def: tt)+
+    } => {
+        {
+            parse_rules! {
+                @NONTERM
+                $parser;
+                $term_type;
+                $unexpected;
+                $eof;
+                $($nonterm_def)+
+            }
+        }
+    };
+
+    // Use an existing parser to extend it's rules.
+    // Useful when the macro recursion limit is reached.
+    {
+        parser: $parser: ident;
+        term: $term_type: ty;
+        $($nonterm_def: tt)+
+    } => {
+        {
+            use parser::ParseError;
+            parse_rules! {
+                parser: $parser;
+                term: $term_type;
+                unexpected: |term| Err(ParseError::Unexpected(term));
+                eof: || Err(ParseError::Eof);
+                $($nonterm_def)+
+            }
+        }
+    };
+
+    // Creates the parser for you.
     {
         term: $term_type: ty;
         $($nonterm_def: tt)+
     } => {
         {
-            use parser::{Parser, ParseError};
+            let mut parser = ::parser::Parser::new();
 
-            let mut parser = Parser::new();
-
-            parse_rules!(@NONTERM $term_type; parser; $($nonterm_def)+);
+            parse_rules! {
+                parser: parser;
+                term: $term_type;
+                $($nonterm_def)+
+            }
 
             parser
-        };
+        }
     };
 
-    // Gen code for each nonterm
+    // Gen code for each nonterm.
     {
         @NONTERM
-        $term_type: ty;
         $parser: ident;
+        $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $nonterm: expr => {
             $(
                 [$($rule_token: tt)*] => $logic: expr
@@ -74,20 +122,22 @@ macro_rules! parse_rules {
         },
         $($nonterm_def: tt)+
     } => {
-        parse_rules!(@NONTERM $term_type; $parser; $nonterm => {
+        parse_rules!(@NONTERM $parser; $term_type; $unexpected; $eof; $nonterm => {
             $(
                 [$($rule_token)*] => $logic
             ),+
         });
 
-        parse_rules!(@NONTERM $term_type; $parser; $($nonterm_def)+);
+        parse_rules!(@NONTERM $parser; $term_type; $unexpected; $eof; $($nonterm_def)+);
     };
 
-    // Gen code for a single nonterm
+    // Gen code for a single nonterm.
     {
         @NONTERM
-        $term_type: ty;
         $parser: ident;
+        $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $nonterm: expr => {
             $(
                 [$($rule_token: tt)*] => $logic: expr
@@ -98,40 +148,49 @@ macro_rules! parse_rules {
             $(parse_rules! {
                 @ROOT_RULE
                 $term_type;
-                rules; iter;
+                $unexpected;
+                $eof;
+                rules;
+                iter;
                 $($rule_token)* => $logic
             })*
 
             // Safe to unwrap since the nonterm is guaranteeded to have at least one rule
             // and any rule before this would have returned eof err.
             #[allow(unreachable_code)]
-            Err(ParseError::Unexpected(iter.next().unwrap()))
+            ($unexpected)(iter.next().unwrap())
         });
     };
 
-    // Gen code for each nonterm handle
+    // Gen code for each nonterm handle.
     {
         @NONTERM
-        $term_type: ty;
         $parser: ident;
+        $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $nonterm: expr => |$rules_name: ident, $ident_name: ident| $logic: expr,
         $($nonterm_def: tt)+
     } => {
         parse_rules!{
             @NONTERM
-            $term_type;
             $parser;
+            $term_type;
+            $unexpected;
+            $eof;
             $nonterm => |$rules_name, $ident_name| $logic
         }
 
-        parse_rules!(@NONTERM $term_type; $parser; $($nonterm_def)+);
+        parse_rules!(@NONTERM $parser; $term_type; $unexpected; $eof; $($nonterm_def)+);
     };
 
-    // Gen code for a single nonterm handle
+    // Gen code for a single nonterm handle.
     {
         @NONTERM
-        $term_type: ty;
         $parser: ident;
+        $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $nonterm: expr => |$rules_name: ident, $ident_name: ident| $logic: expr
     } => {
         $parser.rule($nonterm, #[allow(unused_variables)] |$rules_name, $ident_name| $logic);
@@ -141,6 +200,8 @@ macro_rules! parse_rules {
     {
         @ROOT_RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         @ => $logic: expr
@@ -148,10 +209,12 @@ macro_rules! parse_rules {
         return Ok($logic);
     };
 
-    // Gen code for the first rule which is followed by more rules
+    // Gen code for the first rule which is followed by more rules.
     {
         @ROOT_RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         $term: pat, $($rule_token: tt)+
@@ -159,17 +222,27 @@ macro_rules! parse_rules {
         match $iter.peek().map(|peek: &$term_type| peek.clone()) {
             Some($term) => {
                 $iter.next();
-                return parse_rules!(@RULE $term_type; $rules; $iter; $($rule_token)+);
+                return parse_rules! {
+                    @RULE
+                    $term_type;
+                    $unexpected;
+                    $eof;
+                    $rules;
+                    $iter;
+                    $($rule_token)+
+                }
             },
             Some(_) => {},
-            None => return Err(ParseError::Eof)
+            None => return ($eof)()
         }
     };
 
-    // Gen code for a singe root rule
+    // Gen code for a singe root rule.
     {
         @ROOT_RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         $term: pat => $logic: expr
@@ -180,14 +253,16 @@ macro_rules! parse_rules {
                 return Ok($logic);
             },
             Some(_) => {},
-            None => return Err(ParseError::Eof)
+            None => return ($eof)()
         }
     };
 
-    // Gen code for each consecutive rule which is followed by more rules
+    // Gen code for each consecutive rule which is followed by more rules.
     {
         @RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         $term: pat, $($rule_token: tt)+
@@ -195,17 +270,27 @@ macro_rules! parse_rules {
         match $iter.peek().map(|peek: &$term_type| peek.clone()) {
             Some($term) => {
                 $iter.next();
-                parse_rules!(@RULE $term_type; $rules; $iter; $($rule_token)+)
+                parse_rules! {
+                    @RULE
+                    $term_type;
+                    $unexpected;
+                    $eof;
+                    $rules;
+                    $iter;
+                    $($rule_token)+
+                }
             },
-            Some(u) => Err(ParseError::Unexpected(u)),
-            None => Err(ParseError::Eof)
+            Some(u) => ($unexpected)(u),
+            None => ($eof)()
         }
     };
 
-    // Gen code for the last rule
+    // Gen code for the last rule.
     {
         @RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         $term: pat => $logic: expr
@@ -215,15 +300,17 @@ macro_rules! parse_rules {
                 $iter.next();
                 Ok($logic)
             },
-            Some(u) => Err(ParseError::Unexpected(u)),
-            None => Err(ParseError::Eof)
+            Some(u) => ($unexpected)(u),
+            None => ($eof)()
         }
     };
 
-    // Gen code for each consecutive nonterm rule which is followed by more rules
+    // Gen code for each consecutive nonterm rule which is followed by more rules.
     {
         @RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         $id: ident : $nonterm: expr, $($rule_token: tt)+
@@ -231,14 +318,24 @@ macro_rules! parse_rules {
         {
             let $id = ($rules.get(&$nonterm).unwrap().0)($rules, $iter);
 
-            parse_rules!(@RULE $term_type; $rules; $iter; $($rule_token)+)
+            parse_rules! {
+                @RULE
+                $term_type;
+                $unexpected;
+                $eof;
+                $rules;
+                $iter;
+                $($rule_token)+
+            }
         }
     };
 
-    // Gen code for the last nonterm rule
+    // Gen code for the last nonterm rule.
     {
         @RULE
         $term_type: ty;
+        $unexpected: expr;
+        $eof: expr;
         $rules: ident;
         $iter: ident;
         $id: ident : $nonterm: expr => $logic: expr
@@ -275,7 +372,7 @@ mod tests {
     enum Nt { E, I, P }
 
     #[test]
-    fn parser1() {
+    fn parser1_ok_eof_unexpected() {
         let mut p = parse_rules! {
             term: (Span, Token);
 
@@ -304,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn parser2() {
+    fn parser2_nonterm() {
         let mut p = parse_rules! {
             term: Token;
 
@@ -331,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn parser3() {
+    fn parser3_epsilon() {
         let mut p = parse_rules! {
             term: Token;
 
@@ -371,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn parser4() {
+    fn parser4_custom_handler() {
         let mut p = parse_rules! {
             term: Token;
 
@@ -415,5 +512,39 @@ mod tests {
             String::from("b"),
             String::from("c")
         ]));
+    }
+
+    #[test]
+    fn parser5_custom_eof_unexpected() {
+        let mut p = ::parser::Parser::new();
+
+        parse_rules! {
+            parser: p;
+            term: (Span, Token);
+            unexpected: |_| Err(0);
+            eof: || Err(1);
+
+            Nt::E => {
+                [(_, Ident(name)), (_, Ident(a))] => {
+                    name + &a
+                }
+            }
+        };
+
+        assert_eq!(p.gen(vec![
+            (Span::new(1, 2, 3), Ident("hi".to_owned())),
+            (Span::new(1, 2, 3), Ident("world".to_owned()))
+        ].into_iter(), &Nt::E),
+        Ok(String::from("hiworld")));
+
+        assert_eq!(p.gen(vec![
+            (Span::new(1, 2, 3), Ident("hi".to_owned()))
+        ].into_iter(), &Nt::E),
+        Err(1));
+
+        assert_eq!(p.gen(vec![
+            (Span::new(1, 2, 3), Ident("hi".to_owned())), (Span::new(1, 2, 3), Integer(123))
+        ].into_iter(), &Nt::E),
+        Err(0));
     }
 }
