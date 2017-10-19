@@ -14,9 +14,9 @@ pub type Result<T> = ::std::result::Result<T, ParseError<T>>;
 ///
 /// The macro does not yet account for:
 ///
-/// * Left Factoring
-/// * Left Recursion
-/// * Operator precedence
+/// * Left Factoring (`A -> qB | qC`)
+/// * Left Recursion (`A -> Aq` (direct) or `A -> Bq B -> Ar` (indirect))
+/// * Operator precedence (A + B * C)
 ///
 /// ### Constraints
 ///
@@ -26,6 +26,8 @@ pub type Result<T> = ::std::result::Result<T, ParseError<T>>;
 /// ### Crude example syntax
 ///
 /// ```ignore
+/// # #[macro_use]
+/// # extern crate lexpar;
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// enum Token {
@@ -35,6 +37,7 @@ pub type Result<T> = ::std::result::Result<T, ParseError<T>>;
 ///     Ident(String)
 /// }
 ///
+/// # fn main() {
 /// use Token::*;
 ///
 /// parse_rules! {
@@ -42,6 +45,7 @@ pub type Result<T> = ::std::result::Result<T, ParseError<T>>;
 ///     I => {
 ///         [Ident(name)] => {}
 ///     },
+/// # // TODO: fix this test to be able to recur
 ///     E => {
 ///         [LParen, ex:E, RParen] => {},
 ///         [id:I] => {},
@@ -52,6 +56,7 @@ pub type Result<T> = ::std::result::Result<T, ParseError<T>>;
 ///     },
 ///     H => |rules, iter| { /* Custom code */ }
 /// }
+/// # }
 /// ```
 #[macro_export]
 macro_rules! parse_rules {
@@ -137,6 +142,7 @@ macro_rules! parse_rules {
                 $iter.next();
                 return parse_rules!(@RULE $iter; $($rule_token)+);
             },
+            // Skip to the next branch of the nonterm.
             Some(_) => {},
             None => return Err(ParseError::Eof)
         }
@@ -152,6 +158,7 @@ macro_rules! parse_rules {
                 $iter.next();
                 return Ok($logic);
             },
+            // Skip to the next branch of the nonterm.
             Some(_) => {},
             None => return Err(ParseError::Eof)
         }
@@ -168,6 +175,7 @@ macro_rules! parse_rules {
             let $id = ($nonterm)($iter);
 
             if let Err(ParseError::UnexpectedRoot(_)) = $id {
+                // Skip to the next branch of the nonterm.
             } else {
                 return parse_rules!(@RULE $iter; $($rule_token)+);
             }
@@ -185,6 +193,7 @@ macro_rules! parse_rules {
             let $id = ($nonterm)($iter);
 
             if let Err(ParseError::UnexpectedRoot(_)) = $id {
+                // Skip to the next branch of the nonterm.
             } else {
                 return Ok($logic);
             }
