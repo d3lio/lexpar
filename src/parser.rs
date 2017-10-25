@@ -145,7 +145,7 @@ macro_rules! parse_rules {
                 return parse_rules!(@RULE $iter; $($rule_token)+);
             },
             // Skip to the next branch of the nonterm.
-            Some(_) => {},
+            Some(_) => (),
             None => return Err(::lexpar::parser::ParseError::Eof)
         }
     };
@@ -161,7 +161,7 @@ macro_rules! parse_rules {
                 return Ok($logic);
             },
             // Skip to the next branch of the nonterm.
-            Some(_) => {},
+            Some(_) => (),
             None => return Err(::lexpar::parser::ParseError::Eof)
         }
     };

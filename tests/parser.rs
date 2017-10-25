@@ -110,7 +110,7 @@ fn parser3_epsilon_and_trailing_commas() {
             },
             i: String => {
                 [Ident(name), Ident(_), p: eps] => {
-                    name + "I"
+                    name + "I" + &p?
                 },
             },
             e: String => {
@@ -134,7 +134,7 @@ fn parser3_epsilon_and_trailing_commas() {
             Ident("b".to_owned()),
             Integer(123)
         ]),
-        Ok(String::from("aIhiworldE"))
+        Ok(String::from("aIepshiworldE"))
     }
 
     assert_eq! {
@@ -299,5 +299,34 @@ fn parser6_recursive_grammar() {
             RParen
         ]),
         Err(ParseError::Eof)
+    }
+}
+
+#[test]
+fn parser7_kleene_star() {
+    let parse = |iter: Box<Iterator<Item = Token>>| {
+        parse_rules! {
+            term: Token;
+
+            expr: String => {
+                [Integer(n), ex: expr] => {
+                    println!("hi");
+                    format!("{} {}", n, ex?)
+                },
+                [@] => { String::new() }
+            }
+        }
+
+        expr(&mut iter.peekable())
+    };
+
+    assert_eq! {
+        parse(iter![
+            Integer(1),
+            Integer(5),
+            Integer(42),
+            Integer(666)
+        ]),
+        Ok(String::from("1 5 42 666"))
     }
 }
