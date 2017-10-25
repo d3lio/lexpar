@@ -16,8 +16,10 @@ enum Kw {
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
     Ident(String),
-    Integer(u32),
+    Integer(i32),
     Keyword(Kw),
+    LParen,
+    RParen,
     Arrow
 }
 
@@ -25,19 +27,19 @@ use self::Token::*;
 
 #[test]
 fn parser1_ok_eof_unexpected() {
-    let s = String::from("!");
+    const EXM_STR: &'static str = "!";
     let parse = |iter: Box<Iterator<Item = (Span, Token)>>| {
         parse_rules! {
             term: (Span, Token);
 
-            E => {
+            entry: String => {
                 [(_, Ident(name)), (_, Ident(a))] => {
-                    name + &a + &s
+                    format!("{}{}{}", name, a, EXM_STR)
                 }
             }
         }
 
-        (E)(&mut iter.peekable())
+        entry(&mut iter.peekable())
     };
 
     assert_eq! {
@@ -63,24 +65,24 @@ fn parser1_ok_eof_unexpected() {
 }
 
 #[test]
-fn parser2_nonterm() {
+fn parser2_nonterm_call() {
     let parse = |iter: Box<Iterator<Item = Token>>| {
         parse_rules! {
             term: Token;
 
-            I => {
+            ident: String => {
                 [Ident(name), Ident(a)] => {
                     name + a.as_str() + "I"
                 }
             },
-            E => {
-                [Ident(name), Ident(a), res: I, Integer(123)] => {
+            entry: String => {
+                [Ident(name), Ident(a), res: ident, Integer(123)] => {
                     res? + name.as_str() + a.as_str() + "E"
                 }
             }
         }
 
-        (E)(&mut iter.peekable())
+        entry(&mut iter.peekable())
     };
 
     assert_eq! {
@@ -101,18 +103,18 @@ fn parser3_epsilon_and_trailing_commas() {
         parse_rules! {
             term: Token;
 
-            P => {
+            eps: String => {
                 [@] => {
                     String::from("eps")
                 }
             },
-            I => {
-                [Ident(name), Ident(_), p: P] => {
+            i: String => {
+                [Ident(name), Ident(_), p: eps] => {
                     name + "I"
                 },
             },
-            E => {
-                [Ident(name), Ident(a), res: I, Integer(123)] => {
+            e: String => {
+                [Ident(name), Ident(a), res: i, Integer(123)] => {
                     res? + name.as_str() + a.as_str() + "E"
                 },
                 [Integer(_)] => {
@@ -121,7 +123,7 @@ fn parser3_epsilon_and_trailing_commas() {
             },
         }
 
-        (E)(&mut iter.peekable())
+        e(&mut iter.peekable())
     };
 
     assert_eq! {
@@ -149,7 +151,7 @@ fn parser4_custom_handler() {
         parse_rules! {
             term: Token;
 
-            I => |iter| {
+            i: Vec<String> => |iter| {
                 let mut params = Vec::new();
 
                 // while let Some(Ident(name)) = iter.peek().map(|peek| peek.clone()) {
@@ -166,8 +168,8 @@ fn parser4_custom_handler() {
 
                 Ok(params)
             },
-            E => {
-                [Keyword(Kw::Fn), Ident(name), params: I, Arrow] => {
+            e: Vec<String> => {
+                [Keyword(Kw::Fn), Ident(name), params: i, Arrow] => {
                     let mut idents: Vec<String> = params?;
                     idents.insert(0, name);
                     idents
@@ -175,7 +177,7 @@ fn parser4_custom_handler() {
             }
         }
 
-        (E)(&mut iter.peekable())
+        e(&mut iter.peekable())
     };
 
     assert_eq! {
@@ -202,17 +204,17 @@ fn parser5_nonterm_as_first_rule() {
         parse_rules! {
             term: Token;
 
-            wrong => {
+            wrong: String => {
                 [Integer(_), Ident(a)] => {
                     a
                 }
             },
-            right => {
+            right: String => {
                 [Ident(name), Ident(a)] => {
                     name + a.as_str() + "I"
                 }
             },
-            E => {
+            e: String => {
                 [res: wrong, Ident(name), Ident(a), Integer(123)] => {
                     res? + name.as_str() + a.as_str() + "E"
                 },
@@ -222,7 +224,7 @@ fn parser5_nonterm_as_first_rule() {
             }
         }
 
-        (E)(&mut iter.peekable())
+        e(&mut iter.peekable())
     }
 
     assert_eq! {
@@ -234,5 +236,55 @@ fn parser5_nonterm_as_first_rule() {
             Integer(123)
         ]),
         Ok(String::from("hiworldIabE"))
+    }
+}
+
+#[test]
+fn parser6_recursive_grammar() {
+    let parse = |iter: Box<Iterator<Item = Token>>| {
+        parse_rules! {
+            term: Token;
+
+            ident: String => {
+                [Ident(name)] => {
+                    format!("*{}*", name)
+                }
+            },
+            expr: String => {
+                [LParen, ex: expr, RParen] => { ex? },
+                [id: ident] => { id? },
+                [Integer(n)] => { n.to_string() }
+            }
+        }
+
+        expr(&mut iter.peekable())
+    };
+
+    assert_eq! {
+        parse(iter![Ident(String::from("foo"))]),
+        Ok(String::from("*foo*"))
+    }
+
+    assert_eq! {
+        parse(iter![LParen, Ident(String::from("foo")), RParen]),
+        Ok(String::from("*foo*"))
+    }
+
+    assert_eq! {
+        parse(iter![LParen, Integer(-1), RParen]),
+        Ok(String::from("-1"))
+    }
+
+    assert_eq! {
+        parse(iter![
+            LParen,
+            LParen,
+            LParen,
+            Ident(String::from("foo")),
+            RParen,
+            RParen,
+            RParen
+        ]),
+        Ok(String::from("*foo*"))
     }
 }
