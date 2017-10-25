@@ -287,4 +287,17 @@ fn parser6_recursive_grammar() {
         ]),
         Ok(String::from("*foo*"))
     }
+
+    // Disbalanced parentheses
+    assert_eq! {
+        parse(iter![
+            LParen,
+            LParen,
+            LParen,
+            Ident(String::from("foo")),
+            RParen,
+            RParen
+        ]),
+        Err(ParseError::Eof)
+    }
 }
