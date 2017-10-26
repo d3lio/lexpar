@@ -309,9 +309,8 @@ fn parser7_kleene_star() {
             term: Token;
 
             expr: String => {
-                [Integer(n), ex: expr] => {
-                    println!("hi");
-                    format!("{} {}", n, ex?)
+                [Ident(name), Integer(n), ex: expr] => {
+                    format!("{}:{}, {}", name, n, ex?)
                 },
                 [@] => { String::new() }
             }
@@ -322,11 +321,41 @@ fn parser7_kleene_star() {
 
     assert_eq! {
         parse(iter![
+            Ident(String::from("one")),
+            Integer(1),
+            Ident(String::from("five")),
+            Integer(5),
+            Ident(String::from("life")),
+            Integer(42),
+            Ident(String::from("devil")),
+            Integer(666)
+        ]),
+        Ok(String::from("one:1, five:5, life:42, devil:666, "))
+    }
+
+    assert_eq! {
+        parse(iter![
             Integer(1),
             Integer(5),
             Integer(42),
             Integer(666)
         ]),
-        Ok(String::from("1 5 42 666"))
+        Ok(String::from(""))
+    }
+
+    assert_eq! {
+        parse(iter![
+            Ident(String::from("one")),
+            Integer(1),
+            Integer(5)
+        ]),
+        Ok(String::from("one:1, "))
+    }
+
+    assert_eq! {
+        parse(iter![
+            Ident(String::from("one"))
+        ]),
+        Err(ParseError::Eof)
     }
 }

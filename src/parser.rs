@@ -71,7 +71,7 @@ macro_rules! parse_rules {
         }
     };
 
-    // Loop nonterms.
+    // Loop nonterms
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
         $nonterm: ident : $ret_type: ty => { $( [$($rule_token: tt)*] => $logic: expr ),+  $(,)* },
@@ -84,26 +84,27 @@ macro_rules! parse_rules {
         parse_rules!(@NONTERM $iter; $iter_type; $term_type; $($nonterm_def)+);
     };
 
-    // Nonterm rules.
+    // Nonterm rules
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
         $nonterm: ident : $ret_type: ty => {
             $( [$($rule_token: tt)*] => $logic: expr ),+  $(,)*
         } $(,)*
     } => {
+        // Diable the warning since Epsilon does not use iter
         #[allow(unused_variables)]
         fn $nonterm($iter: &mut $iter_type) -> ::lexpar::parser::Result<$ret_type, $term_type> {
             $(parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);)*
 
-            // Safe to unwrap since the nonterm is guaranteeded to have at least one rule
-            // and any rule before this would have returned eof err.
             #[allow(unreachable_code)]
-            Err(::lexpar::parser::ParseError::UnexpectedRoot($iter.peek()
-                .map(|peek: &$term_type| peek.clone()).unwrap()))
+            match $iter.peek().map(|peek: &$term_type| peek.clone()) {
+                Some(u) => Err(::lexpar::parser::ParseError::UnexpectedRoot(u)),
+                None => Err(::lexpar::parser::ParseError::Eof)
+            }
         };
     };
 
-    // Loop nonterm handlers.
+    // Loop nonterm handlers
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
         $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr,
@@ -113,14 +114,11 @@ macro_rules! parse_rules {
         parse_rules!(@NONTERM $iter; $iter_type; $term_type; $($nonterm_def)+);
     };
 
-    // Nonterm handler.
+    // Nonterm handler
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
         $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr $(,)*
     } => {
-        // TODO change/move the comment
-        // Warn about `unused_variables` since this is your own custom code so it should
-        // use the iter by either advancing it or passing it to another nonterm.
         fn $nonterm($iter_name: &mut $iter_type) -> ::lexpar::parser::Result<$ret_type, $term_type> {
             $logic
         }
@@ -134,7 +132,7 @@ macro_rules! parse_rules {
         return Ok($logic);
     };
 
-    // First rule and more rules.
+    // First rule and more rules
     {
         @ROOT_RULE $iter: ident; $term_type: ty;
         $term: pat, $($rule_token: tt)+
@@ -144,13 +142,15 @@ macro_rules! parse_rules {
                 $iter.next();
                 return parse_rules!(@RULE $iter; $($rule_token)+);
             },
-            // Skip to the next branch of the nonterm.
+            // Skip to the next branch of the nonterm
             Some(_) => (),
-            None => return Err(::lexpar::parser::ParseError::Eof)
+            // Let the nonterm handle the eof
+            // This is so we can enter an Epsilon root rule if it exists
+            None => ()
         }
     };
 
-    // Only rule.
+    // Only rule
     {
         @ROOT_RULE $iter: ident; $term_type: ty;
         $term: pat => $logic: expr
@@ -160,49 +160,51 @@ macro_rules! parse_rules {
                 $iter.next();
                 return Ok($logic);
             },
-            // Skip to the next branch of the nonterm.
+            // Skip to the next branch of the nonterm
             Some(_) => (),
-            None => return Err(::lexpar::parser::ParseError::Eof)
+            // Let the nonterm handle the eof
+            // This is so we can enter an Epsilon root rule if it exists
+            None => ()
         }
     };
 
-    // First nonterm and more rules.
+    // First nonterm and more rules
     {
         @ROOT_RULE $iter: ident; $term_type: ty;
         $id: ident : $nonterm: expr, $($rule_token: tt)+
     } => {
-        // New block to prevent result sharing between branches.
+        // New block to prevent result sharing between branches
         {
             #[allow(unused_variables)]
             let $id = $nonterm($iter);
 
             if let Err(::lexpar::parser::ParseError::UnexpectedRoot(_)) = $id {
-                // Skip to the next branch of the nonterm.
+                // Skip to the next branch of the nonterm
             } else {
                 return parse_rules!(@RULE $iter; $($rule_token)+);
             }
         }
     };
 
-    // Only nonterm.
+    // Only nonterm
     {
         @ROOT_RULE $iter: ident; $term_type: ty;
         $id: ident : $nonterm: expr => $logic: expr
     } => {
-        // New block to prevent result sharing between branches.
+        // New block to prevent result sharing between branches
         {
             #[allow(unused_variables)]
             let $id = $nonterm($iter);
 
             if let Err(::lexpar::parser::ParseError::UnexpectedRoot(_)) = $id {
-                // Skip to the next branch of the nonterm.
+                // Skip to the next branch of the nonterm
             } else {
                 return Ok($logic);
             }
         }
     };
 
-    // One and more rules.
+    // One and more rules
     {
         @RULE $iter: ident;
         $term: pat, $($rule_token: tt)+
@@ -216,7 +218,7 @@ macro_rules! parse_rules {
         }
     };
 
-    // Last rule.
+    // Last rule
     {
         @RULE $iter: ident;
         $term: pat => $logic: expr
@@ -228,7 +230,7 @@ macro_rules! parse_rules {
         }
     };
 
-    // Nonterm and more rules.
+    // Nonterm and more rules
     {
         @RULE $iter: ident;
         $id: ident : $nonterm: expr, $($rule_token: tt)+
@@ -241,7 +243,7 @@ macro_rules! parse_rules {
         }
     };
 
-    // Last nonterm.
+    // Last nonterm
     {
         @RULE $iter: ident;
         $id: ident : $nonterm: expr => $logic: expr
