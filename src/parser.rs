@@ -74,12 +74,28 @@ macro_rules! parse_rules {
     // Loop nonterms
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
-        $nonterm: ident : $ret_type: ty => { $( [$($rule_token: tt)*] => $logic: expr ),+  $(,)* },
+        $nonterm: ident : $ret_type: ty => {
+            $( [$($rule_token: tt)*] => $logic: expr ),+
+            $(,)*
+            },
         $($nonterm_def: tt)+
     } => {
         parse_rules!(@NONTERM $iter; $iter_type; $term_type; $nonterm : $ret_type => {
             $( [$($rule_token)*] => $logic ),+
         });
+
+        parse_rules!(@NONTERM $iter; $iter_type; $term_type; $($nonterm_def)+);
+    };
+
+    // Loop nonterm handlers
+    {
+        @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
+        $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr,
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules! {
+            @NONTERM $iter; $iter_type; $term_type; $nonterm : $ret_type => |$iter_name| $logic
+        }
 
         parse_rules!(@NONTERM $iter; $iter_type; $term_type; $($nonterm_def)+);
     };
@@ -102,16 +118,6 @@ macro_rules! parse_rules {
                 None => Err(::lexpar::parser::ParseError::Eof)
             }
         };
-    };
-
-    // Loop nonterm handlers
-    {
-        @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
-        $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr,
-        $($nonterm_def: tt)+
-    } => {
-        parse_rules!(@NONTERM $iter; $iter_type; $term_type; $nonterm : $ret_type => |$iter_name| $logic);
-        parse_rules!(@NONTERM $iter; $iter_type; $term_type; $($nonterm_def)+);
     };
 
     // Nonterm handler

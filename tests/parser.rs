@@ -359,3 +359,59 @@ fn parser7_kleene_star() {
         Err(ParseError::Eof)
     }
 }
+
+#[test]
+fn parser8_fn_args() {
+    let parse = |iter: Box<Iterator<Item = Token>>| {
+        parse_rules! {
+            term: Token;
+
+            args: Vec<(String, String)> => {
+                [Ident(name), Integer(n), v: args] => {
+                    let mut args = v?;
+                    args.push((name, n.to_string()));
+                    args
+                },
+                [@] => { Vec::new() }
+            },
+
+            expr: String => {
+                [Keyword(Kw::Fn), Ident(fn_name), LParen, v: args, RParen] => {
+                    let args = v?.into_iter().rev().fold(String::new(), |acc, arg| {
+                        format!("{}, {} = {}", acc, arg.0, arg.1)
+                    });
+                    format!("{}({})", fn_name, &args[2..])
+                }
+            }
+        }
+
+        expr(&mut iter.peekable())
+    };
+
+    assert_eq! {
+        parse(iter![
+            Keyword(Kw::Fn),
+            Ident(String::from("my_fn")),
+            LParen,
+            Ident(String::from("one")),
+            Integer(1),
+            Ident(String::from("five")),
+            Integer(5),
+            RParen
+        ]),
+        Ok(String::from("my_fn(one = 1, five = 5)"))
+    }
+
+    assert_eq! {
+        parse(iter![
+            Keyword(Kw::Fn),
+            Ident(String::from("my_fn")),
+            Ident(String::from("one")),
+            Integer(1),
+            Ident(String::from("five")),
+            Integer(5),
+            RParen
+        ]),
+        Err(ParseError::Unexpected(Ident(String::from("one"))))
+    }
+}
