@@ -10,7 +10,7 @@ use regex::Regex;
 /// See `Lexer` for more info.
 #[macro_export]
 macro_rules! lex_rules {
-    ($($e: expr => $b: expr),*) => { vec![$( ($e, Box::new($b)) ),*] }
+    ($($e: expr => $b: expr),+) => { vec![$( ($e, Box::new($b)) ),+] }
 }
 
 /// Represents a range of characters in the source.
