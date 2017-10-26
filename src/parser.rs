@@ -113,8 +113,8 @@ macro_rules! parse_rules {
             $(parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);)*
 
             #[allow(unreachable_code)]
-            match $iter.peek() {
-                Some(u) => Err(::lexpar::parser::ParseError::UnexpectedRoot(u.clone())),
+            match $iter.peek().map(|peek: &$term_type| peek.clone()) {
+                Some(u) => Err(::lexpar::parser::ParseError::UnexpectedRoot(u)),
                 None => Err(::lexpar::parser::ParseError::Eof)
             }
         };
