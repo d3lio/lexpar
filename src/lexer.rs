@@ -166,12 +166,7 @@ impl<T> Iterator for LexerIter<T> {
                 let prev_line = self.line;
                 let prev_pos = self.pos;
 
-                for ch in text.chars() {
-                    if ch == '\n' {
-                        self.line += 1;
-                    }
-                }
-
+                self.line += text.chars().filter(|&x| x == '\n').count();
                 self.pos += rmatch.end();
 
                 Some(func(text, Span {
