@@ -111,25 +111,30 @@ impl<T> Lexer<T> {
             panic!("Empty rules set");
         }
 
-        let mut pattern = String::from("^(?:");
-        let mut arms = Vec::new();
+        let (pattern, arms) = {
+            let mut pattern = String::new();
+            let mut arms = Vec::new();
+            let mut rules_iter = rules.into_iter();
 
-        for (pat, f) in rules {
-            pattern = pattern + "(" + pat + ")|";
-            arms.push(f);
-        }
+            if let Some((pat, f)) = rules_iter.next() {
+                pattern.push_str(&format!("({})", pat));
+                arms.push(f);
 
-        pattern.pop();
-        pattern.push_str(")");
+                while let Some((pat, f)) = rules_iter.next() {
+                    pattern.push_str(&format!("|({})", pat));
+                    arms.push(f);
+                }
+            }
 
-        let internal = LexerInternal {
-            matcher: Regex::new(&pattern).unwrap(),
-            arms: arms,
-            unknown: Box::new(unknown)
+            (format!("^(?:{})", pattern), arms)
         };
 
         Self {
-            internal: Rc::new(internal)
+            internal: Rc::new(LexerInternal {
+                matcher: Regex::new(&pattern).unwrap(),
+                arms: arms,
+                unknown: Box::new(unknown)
+            })
         }
     }
 
