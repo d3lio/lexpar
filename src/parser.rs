@@ -117,7 +117,7 @@ macro_rules! parse_rules {
                 Some(u) => Err(::lexpar::parser::ParseError::UnexpectedRoot(u)),
                 None => Err(::lexpar::parser::ParseError::Eof)
             }
-        };
+        }
     };
 
     // Nonterm handler
