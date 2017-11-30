@@ -102,7 +102,7 @@ macro_rules! parse_rules {
     };
 
     // Loop folds
-    // fold <nonterm>: <type> as <acc> => { ... }
+    // #[fold(<acc>)] <nonterm>: <type> => { ... }
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
 
@@ -123,7 +123,7 @@ macro_rules! parse_rules {
     };
 
     // Nonterm rules
-    // <nonterm>: <type> => { (rules)+ }
+    // <nonterm>: <type> => { arms+ }
     {
         @NONTERM $iter: ident; $iter_type: ty; $term_type: ty;
 
@@ -158,8 +158,8 @@ macro_rules! parse_rules {
     };
 
     // Fold syntax
-    // fold <nonterm>: <type> as <acc> => {
-    //     [rules+, nonterm] => logic,
+    // #[fold(<acc>)] <nonterm>: <type> => {
+    //     [ rules+ ] => logic,
     //     [@] => start_acc
     // }
     {
