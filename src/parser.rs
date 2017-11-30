@@ -7,6 +7,39 @@ pub enum ParseError<T> {
 
 pub type Result<P, T> = ::std::result::Result<P, ParseError<T>>;
 
+/// Unshiftable interator
+pub struct UnshiftIter<I> where I: Iterator {
+    iter: I,
+    head: Option<I::Item>
+}
+
+impl<I> From<I> for UnshiftIter<I> where I: Iterator {
+    fn from(iter: I) -> Self {
+        Self {
+            iter,
+            head: None
+        }
+    }
+}
+
+impl<I> Iterator for UnshiftIter<I> where I: Iterator {
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.head.is_some() {
+            self.head.take()
+        } else {
+            self.iter.next()
+        }
+    }
+}
+
+impl<I> UnshiftIter<I> where I: Iterator {
+    pub fn unshift(&mut self, item: I::Item) {
+        self.head = Some(item);
+    }
+}
+
 /// Macro that generates a parser from a formal grammar.
 ///
 /// **NOTE:** For more info look at the tests.
