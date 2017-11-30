@@ -302,116 +302,158 @@ fn parser6_recursive_grammar() {
     }
 }
 
-#[test]
-fn parser7_kleene_star() {
-    let parse = |iter: Box<Iterator<Item = Token>>| {
-        parse_rules! {
-            term: Token;
+mod looping {
+    use super::*;
 
-            expr: String => {
-                [Ident(name), Integer(n), ex: expr] => {
-                    format!("{}:{}, {}", name, n, ex?)
-                },
-                [@] => { String::new() }
-            }
-        }
+    #[test]
+    fn parser7_kleene_star() {
+        let parse = |iter: Box<Iterator<Item = Token>>| {
+            parse_rules! {
+                term: Token;
 
-        expr(&mut iter.peekable())
-    };
-
-    assert_eq! {
-        parse(iter![
-            Ident(String::from("one")),
-            Integer(1),
-            Ident(String::from("five")),
-            Integer(5),
-            Ident(String::from("life")),
-            Integer(42),
-            Ident(String::from("devil")),
-            Integer(666)
-        ]),
-        Ok(String::from("one:1, five:5, life:42, devil:666, "))
-    }
-
-    assert_eq! {
-        parse(iter![
-            Integer(1),
-            Integer(5),
-            Integer(42),
-            Integer(666)
-        ]),
-        Ok(String::from(""))
-    }
-
-    assert_eq! {
-        parse(iter![
-            Ident(String::from("one")),
-            Integer(1),
-            Integer(5)
-        ]),
-        Ok(String::from("one:1, "))
-    }
-
-    assert_eq! {
-        parse(iter![
-            Ident(String::from("one"))
-        ]),
-        Err(ParseError::Eof)
-    }
-}
-
-#[test]
-fn parser8_fn_args() {
-    let parse = |iter: Box<Iterator<Item = Token>>| {
-        parse_rules! {
-            term: Token;
-
-            args: Vec<(String, String)> => {
-                [Ident(name), Integer(n), v: args] => {
-                    let mut args = v?;
-                    args.push((name, n.to_string()));
-                    args
-                },
-                [@] => { Vec::new() }
-            },
-
-            expr: String => {
-                [Keyword(Kw::Fn), Ident(fn_name), LParen, v: args, RParen] => {
-                    let args = v?.into_iter().rev().fold(String::new(), |acc, arg| {
-                        format!("{}, {} = {}", acc, arg.0, arg.1)
-                    });
-                    format!("{}({})", fn_name, &args[2..])
+                expr: String => {
+                    [Ident(name), Integer(n), ex: expr] => {
+                        format!("{}:{}, {}", name, n, ex?)
+                    },
+                    [@] => { String::new() }
                 }
             }
+
+            expr(&mut iter.peekable())
+        };
+
+        assert_eq! {
+            parse(iter![
+                Ident(String::from("one")),
+                Integer(1),
+                Ident(String::from("five")),
+                Integer(5),
+                Ident(String::from("life")),
+                Integer(42),
+                Ident(String::from("devil")),
+                Integer(666)
+            ]),
+            Ok(String::from("one:1, five:5, life:42, devil:666, "))
         }
 
-        expr(&mut iter.peekable())
-    };
+        assert_eq! {
+            parse(iter![
+                Integer(1),
+                Integer(5),
+                Integer(42),
+                Integer(666)
+            ]),
+            Ok(String::from(""))
+        }
 
-    assert_eq! {
-        parse(iter![
-            Keyword(Kw::Fn),
-            Ident(String::from("my_fn")),
-            LParen,
-            Ident(String::from("one")),
-            Integer(1),
-            Ident(String::from("five")),
-            Integer(5),
-            RParen
-        ]),
-        Ok(String::from("my_fn(one = 1, five = 5)"))
+        assert_eq! {
+            parse(iter![
+                Ident(String::from("one")),
+                Integer(1),
+                Integer(5)
+            ]),
+            Ok(String::from("one:1, "))
+        }
+
+        assert_eq! {
+            parse(iter![
+                Ident(String::from("one"))
+            ]),
+            Err(ParseError::Eof)
+        }
     }
 
-    assert_eq! {
-        parse(iter![
-            Keyword(Kw::Fn),
-            Ident(String::from("my_fn")),
-            Ident(String::from("one")),
-            Integer(1),
-            Ident(String::from("five")),
-            Integer(5),
-            RParen
-        ]),
-        Err(ParseError::Unexpected(Ident(String::from("one"))))
+    macro_rules! assert_args {
+        ($parse: ident) => {
+            assert_eq! {
+                $parse(iter![
+                    Keyword(Kw::Fn),
+                    Ident(String::from("my_fn")),
+                    LParen,
+                    Ident(String::from("one")),
+                    Integer(1),
+                    Ident(String::from("five")),
+                    Integer(5),
+                    RParen
+                ]),
+                Ok(String::from("my_fn(one = 1, five = 5)"))
+            }
+
+            assert_eq! {
+                $parse(iter![
+                    Keyword(Kw::Fn),
+                    Ident(String::from("my_fn")),
+                    Ident(String::from("one")),
+                    Integer(1),
+                    Ident(String::from("five")),
+                    Integer(5),
+                    RParen
+                ]),
+                Err(ParseError::Unexpected(Ident(String::from("one"))))
+            }
+        }
+    }
+
+    #[test]
+    fn parser8_fn_args() {
+        let parse = |iter: Box<Iterator<Item = Token>>| {
+            parse_rules! {
+                term: Token;
+
+                args: Vec<(String, String)> => {
+                    [Ident(name), Integer(n), v: args] => {
+                        let mut args = v?;
+                        args.push((name, n.to_string()));
+                        args
+                    },
+                    [@] => { Vec::new() }
+                },
+
+                expr: String => {
+                    [Keyword(Kw::Fn), Ident(fn_name), LParen, v: args, RParen] => {
+                        let args = v?.into_iter().rev().fold(String::new(), |acc, arg| {
+                            format!("{}, {} = {}", acc, arg.0, arg.1)
+                        });
+                        format!("{}({})", fn_name, &args[2..])
+                    }
+                }
+            }
+
+            expr(&mut iter.peekable())
+        };
+
+        assert_args!(parse);
+    }
+
+    #[test]
+    fn parser9_fold_fn_args() {
+        let parse = |iter: Box<Iterator<Item = Token>>| {
+            parse_rules! {
+                term: Token;
+
+                #[fold(args)]
+                args: Vec<(String, String)> => {
+                    [Ident(name), Integer(n)] => {
+                        let mut args = args;
+                        args.push((name, n.to_string()));
+                        args
+                    },
+                    [@] => { Vec::new() }
+                },
+
+                expr: String => {
+                    [Keyword(Kw::Fn), Ident(fn_name), LParen, v: args, RParen] => {
+                        let args = v?.into_iter().fold(String::new(), |acc, arg| {
+                            format!("{}, {} = {}", acc, arg.0, arg.1)
+                        });
+                        format!("{}({})", fn_name, &args[2..])
+                    }
+                }
+            }
+
+            expr(&mut iter.peekable())
+        };
+
+        assert_args!(parse);
     }
 }
