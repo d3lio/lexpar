@@ -175,7 +175,6 @@ macro_rules! parse_rules {
         #[allow(unused_variables)]
         fn $nonterm($iter: &mut $iter_type) -> ::lexpar::parser::Result<$ret_type, $term_type> {
             use ::lexpar::parser::Result;
-            use ::lexpar::parser::ParseError::*;
 
             let mut acc = $acc_expr;
             let mut unexpected_root = false;
@@ -225,7 +224,6 @@ macro_rules! parse_rules {
                             acc = res;
                         }
                     },
-                    Err(UnexpectedRoot(term)) => break Err(Unexpected(term)),
                     Err(err) => break Err(err)
                 }
             }
