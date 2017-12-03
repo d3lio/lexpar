@@ -2,7 +2,7 @@
 extern crate lexpar;
 
 use lexpar::lexer::Span;
-use lexpar::parser::ParseError;
+use lexpar::parser::{UnshiftIter, ParseError};
 
 macro_rules! iter {
     ( $($e: expr),* ) => { Box::new(vec![ $($e),* ].into_iter()) }
@@ -39,7 +39,7 @@ fn parser1_ok_eof_unexpected() {
             }
         }
 
-        entry(&mut iter.peekable())
+        entry(&mut UnshiftIter::from(iter.peekable()))
     };
 
     assert_eq! {
@@ -82,7 +82,7 @@ fn parser2_nonterm_call() {
             }
         }
 
-        entry(&mut iter.peekable())
+        entry(&mut UnshiftIter::from(iter.peekable()))
     };
 
     assert_eq! {
@@ -123,7 +123,7 @@ fn parser3_epsilon_and_trailing_commas() {
             },
         }
 
-        e(&mut iter.peekable())
+        e(&mut UnshiftIter::from(iter.peekable()))
     };
 
     assert_eq! {
@@ -177,7 +177,7 @@ fn parser4_custom_handler() {
             }
         }
 
-        e(&mut iter.peekable())
+        e(&mut UnshiftIter::from(iter.peekable()))
     };
 
     assert_eq! {
@@ -200,7 +200,7 @@ fn parser4_custom_handler() {
 
 #[test]
 fn parser5_nonterm_as_first_rule() {
-    fn parse(iter: Box<Iterator<Item = Token>>) -> Result<String, ParseError<Token>> {
+    fn parse<I>(iter: I) -> Result<String, ParseError<Token>> where I: Iterator<Item = Token> {
         parse_rules! {
             term: Token;
 
@@ -224,7 +224,7 @@ fn parser5_nonterm_as_first_rule() {
             }
         }
 
-        e(&mut iter.peekable())
+        e(&mut UnshiftIter::from(iter.peekable()))
     }
 
     assert_eq! {
@@ -257,7 +257,7 @@ fn parser6_recursive_grammar() {
             }
         }
 
-        expr(&mut iter.peekable())
+        expr(&mut UnshiftIter::from(iter.peekable()))
     };
 
     assert_eq! {
@@ -319,7 +319,7 @@ mod looping {
                 }
             }
 
-            expr(&mut iter.peekable())
+            expr(&mut UnshiftIter::from(iter.peekable()))
         };
 
         assert_eq! {
@@ -419,7 +419,7 @@ mod looping {
                 }
             }
 
-            expr(&mut iter.peekable())
+            expr(&mut UnshiftIter::from(iter.peekable()))
         };
 
         assert_args!(parse);
@@ -451,7 +451,7 @@ mod looping {
                 }
             }
 
-            expr(&mut iter.peekable())
+            expr(&mut UnshiftIter::from(iter.peekable()))
         };
 
         assert_args!(parse);
