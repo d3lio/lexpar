@@ -60,13 +60,13 @@ struct LexerInternal<T> {
 /// There is also the `unknown` callback which is invoked when non of the rules match. The first
 /// argument is a `&str` which contains only the first errorneos char and a `Span`. The `Lexer`
 /// expects that the user either panics in the unknown callback or returns a special token at which
-/// point the `LexerIter` will move the matching position 1 character forward so it can continue
+/// point the `LexIter` will move the matching position 1 character forward so it can continue
 /// matching after an error. The former behavior is more common as the only purpose of returning
 /// a special errorneus token would be for generating better errors.
 ///
 /// # Notes
 ///
-/// * The `Lexer` is just a builder for `LexerIter`s which do the actual work.
+/// * The `Lexer` is just a builder for `LexIter`s which do the actual work.
 /// * Avoid capture groups inside the rules since this will cause the lexer to lookup in the wrong
 /// capture group. Instead use non capture groups `(?:)`.
 ///
@@ -94,14 +94,14 @@ pub struct Lexer<T> {
     internal: Rc<LexerInternal<T>>
 }
 
-/// Token `Iterator` over a given source.
+/// Token iterator over a given source.
 ///
-/// To create a `LexerIter` you need to call `Lexer::src_iter`.
+/// To create a `LexIter` you need to call `Lexer::src_iter`.
 ///
 /// This is the structure that operates over the source and matches the tokens.
 /// As an ordinary `Iterator` invoking next will give you the next element of type T, presumably a
 /// token or a structure containing the token.
-pub struct LexerIter<T> {
+pub struct LexIter<T> {
     internal: Rc<LexerInternal<T>>,
     src: String,
     pos: usize,
@@ -144,8 +144,8 @@ impl<T> Lexer<T> {
     }
 
     /// Create a token iterator out of a given source.
-    pub fn src_iter<S: Borrow<str>>(&self, src: S) -> LexerIter<T> {
-        LexerIter {
+    pub fn src_iter<S: Borrow<str>>(&self, src: S) -> LexIter<T> {
+        LexIter {
             internal: self.internal.clone(),
             src: src.borrow().to_owned(),
             pos: 0,
@@ -154,7 +154,7 @@ impl<T> Lexer<T> {
     }
 }
 
-impl<T> Iterator for LexerIter<T> {
+impl<T> Iterator for LexIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {

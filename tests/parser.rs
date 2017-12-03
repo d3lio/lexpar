@@ -451,7 +451,7 @@ mod looping {
                 }
             }
 
-            expr(&mut UnshiftIter::from(iter.peekable()))
+            expr(&mut iter.peekable().into())
         };
 
         assert_args!(parse);
