@@ -8,6 +8,8 @@ pub enum ParseError<T> {
 pub type Result<P, T> = ::std::result::Result<P, ParseError<T>>;
 
 /// Unshiftable interator
+///
+/// Can unshift one element back into the iterator as the next element to be iterated.
 pub struct UnshiftIter<I> where I: Iterator {
     iter: I,
     head: Option<I::Item>
@@ -243,17 +245,19 @@ macro_rules! parse_rules {
     } => {
         #[allow(unused_variables)]
         fn $nonterm($iter: &mut $iter_type) -> ::lexpar::parser::Result<$ret_type, $term_type> {
-            use ::lexpar::parser::Result;
+            use ::lexpar::parser;
 
             let mut acc = $acc_expr;
             let mut unexpected_root = false;
 
-            fn matcher_root($iter: &mut $iter_type, $acc: $ret_type) -> Result<$ret_type, $term_type> {
+            fn matcher_root($iter: &mut $iter_type,
+                            $acc: $ret_type) -> parser::Result<$ret_type, $term_type>
+            {
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
 
                 #[allow(unreachable_code)]
                 match $iter.peek().map(|peek: &$term_type| peek.clone()) {
-                    Some(u) => Err(::lexpar::parser::ParseError::UnexpectedRoot(u)),
+                    Some(u) => Err(parser::ParseError::UnexpectedRoot(u)),
                     None => Ok($acc)
                 }
             };
@@ -261,7 +265,7 @@ macro_rules! parse_rules {
             // $acc should not be named `$iter` or `unexpected_root`
             fn matcher($iter: &mut $iter_type,
                        unexpected_root: &mut bool,
-                       $acc: $ret_type) -> Result<$ret_type, $term_type>
+                       $acc: $ret_type) -> parser::Result<$ret_type, $term_type>
             {
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
 
@@ -273,27 +277,27 @@ macro_rules! parse_rules {
                 Ok($acc)
             };
 
-            match (matcher_root)($iter, acc) {
-                Ok(res) => {
-                    if $iter.peek().is_none() {
-                        return Ok(res);
-                    } else {
-                        acc = res;
+            macro_rules! matcher {
+                ($matcher: expr => $end_cond: expr) => {
+                    match $matcher {
+                        Ok(res) => {
+                            if $end_cond {
+                                return Ok(res);
+                            } else {
+                                acc = res;
+                            }
+                        },
+                        Err(err) => return Err(err)
                     }
-                },
-                Err(err) => return Err(err)
+                };
             }
 
+            matcher!((matcher_root)($iter, acc) => $iter.peek().is_none());
+
             loop {
-                match (matcher)($iter, &mut unexpected_root, acc) {
-                    Ok(res) => {
-                        if $iter.peek().is_none() || unexpected_root {
-                            break Ok(res);
-                        } else {
-                            acc = res;
-                        }
-                    },
-                    Err(err) => break Err(err)
+                matcher!{
+                    (matcher)($iter, &mut unexpected_root, acc) =>
+                    $iter.peek().is_none() || unexpected_root
                 }
             }
         }

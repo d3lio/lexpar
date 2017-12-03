@@ -35,6 +35,11 @@ impl Span {
             line: line
         }
     }
+
+    pub fn extend(mut self, hi: usize) -> Self {
+        self.hi = hi;
+        self
+    }
 }
 
 // TODO(low) remove this in favour of lifetimes.
