@@ -141,12 +141,13 @@ macro_rules! parse_rules {
     } => {
         parse_rules! {
             // `iter` is necessery to be passed so that each arm has iter in its macro scope
-            @NONTERM iter; $term_type;
+            @NONTERM __iter; $term_type;
             $($nonterm_def)+
         }
     };
 
     // Loop nonterms
+    //
     // <nonterm>: <type> => { ... }
     {
         @NONTERM $iter: ident; $term_type: ty;
@@ -165,6 +166,7 @@ macro_rules! parse_rules {
     };
 
     // Loop nonterm handlers
+    //
     // <nonterm>: <type> => |<iter>| { ... }
     {
         @NONTERM $iter: ident; $term_type: ty;
@@ -172,14 +174,13 @@ macro_rules! parse_rules {
         $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr,
         $($nonterm_def: tt)+
     } => {
-        parse_rules! {
-            @NONTERM $iter; $term_type; $nonterm : $ret_type => |$iter_name| $logic
-        }
+        parse_rules!(@NONTERM $iter; $term_type; $nonterm : $ret_type => |$iter_name| $logic);
 
         parse_rules!(@NONTERM $iter; $term_type; $($nonterm_def)+);
     };
 
     // Loop folds
+    //
     // #[fold(<acc>)] <nonterm>: <type> => { ... }
     {
         @NONTERM $iter: ident; $term_type: ty;
@@ -200,7 +201,29 @@ macro_rules! parse_rules {
         parse_rules!(@NONTERM $iter; $term_type; $($nonterm_def)+);
     };
 
+    // Loop bin ops
+    //
+    // #[binop(<affix>)] <nonterm>: <type> => { ... }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        #[binop($affix: ident)]
+        $nonterm: ident : $ret_type: ty => $primary: ident : $prim_type: ty where
+        $__prec_name: ident : $prec_type:ty => |$lhs: ident, $rhs: ident| {
+            $($binop_def: tt)+
+        },
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules!(@NONTERM $iter; $term_type; #[binop($affix)]
+        $nonterm: $ret_type => $primary: $prim_type where $__prec_name: $prec_type => |$lhs, $rhs| {
+            $($binop_def)+
+        });
+
+        parse_rules!(@NONTERM $iter; $term_type; $($nonterm_def)+);
+    };
+
     // Nonterm rules
+    //
     // <nonterm>: <type> => { arms+ }
     {
         @NONTERM $iter: ident; $term_type: ty;
@@ -227,6 +250,7 @@ macro_rules! parse_rules {
     };
 
     // Nonterm handler
+    //
     // |iter| => expr
     {
         @NONTERM $iter: ident; $term_type: ty;
@@ -242,6 +266,7 @@ macro_rules! parse_rules {
     };
 
     // Fold syntax
+    //
     // #[fold(<acc>)] <nonterm>: <type> => {
     //     [ rules+ ] => logic,
     //     [@] => start_acc
@@ -257,17 +282,12 @@ macro_rules! parse_rules {
         } $(,)*
     } => {
         #[allow(unused_variables)]
-        fn $nonterm<I>($iter: &mut ::lexpar::parser::UnshiftIter<I>)
-            -> ::lexpar::parser::Result<$ret_type, $term_type>
-        where I: Iterator<Item = $term_type>
-        {
-            use ::lexpar::parser;
+        parse_rules!(@NONTERM $iter; $term_type; $nonterm: $ret_type => |$iter| {
+            use ::lexpar::parser::{self, UnshiftIter};
 
-            let mut acc = $acc_expr;
-            let mut unexpected_root = false;
+            type ParserResult = parser::Result<$ret_type, $term_type>;
 
-            fn matcher_root<I>($iter: &mut ::lexpar::parser::UnshiftIter<I>,
-                            $acc: $ret_type) -> parser::Result<$ret_type, $term_type>
+            fn matcher_root<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type) -> ParserResult
             where I: Iterator<Item = $term_type>
             {
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
@@ -277,23 +297,23 @@ macro_rules! parse_rules {
                     Some(_) => Err(parser::ParseError::UnexpectedRoot),
                     None => Ok($acc)
                 }
-            };
+            }
 
-            // $acc should not be named `$iter` or `unexpected_root`
-            fn matcher<I>($iter: &mut ::lexpar::parser::UnshiftIter<I>,
-                       unexpected_root: &mut bool,
-                       $acc: $ret_type) -> parser::Result<$ret_type, $term_type>
+            fn matcher<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type, __ur: &mut bool) -> ParserResult
             where I: Iterator<Item = $term_type>
             {
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
 
                 if $iter.peek().is_some() {
-                    *unexpected_root = true;
+                    *__ur = true;
                 }
 
                 #[allow(unreachable_code)]
                 Ok($acc)
-            };
+            }
+
+            let mut acc = $acc_expr;
+            let mut unexpected_root = false;
 
             macro_rules! matcher {
                 ($matcher: expr => $end_cond: expr) => {
@@ -314,11 +334,118 @@ macro_rules! parse_rules {
 
             loop {
                 matcher!{
-                    (matcher)($iter, &mut unexpected_root, acc) =>
+                    (matcher)($iter, acc, &mut unexpected_root) =>
                     $iter.peek().is_none() || unexpected_root
                 }
             }
-        }
+        });
+    };
+
+    // Infix binop syntax
+    //
+    // #[binop(infix)] <nonterm>: <type> => <primary_nonterm>: <primary_type>
+    // where precedence: <prec_type> => |<lhs>, <rhs>| {
+    //     (<op> | <precedence> => logic),+
+    // }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        #[binop($affix: ident)]
+        $nonterm: ident : $ret_type: ty => $primary: ident : $prim_type: ty where
+        $__prec_name: ident : $prec_type:ty => |$lhs: ident, $rhs: ident| {
+                $($op: pat | $precedence: expr => $logic: expr),+
+                $(,)*
+            }
+            $(,)*
+    } => {
+        /*
+        parse_expression ()
+            return parse_binop (parse_primary (), 0)
+
+        parse_binop (lhs, min_precedence)
+            lookahead := peek next token
+            while lookahead is a binary operator whose precedence is >= min_precedence
+                op := lookahead
+                advance to next token
+                rhs := parse_primary ()
+                lookahead := peek next token
+                while lookahead is a binary operator whose precedence is greater
+                        than op's, or a right-associative operator
+                        whose precedence is equal to op's
+                    rhs := parse_binop (rhs, lookahead's precedence)
+                    lookahead := peek next token
+                lhs := the result of applying op with operands lhs and rhs
+            return lhs
+        */
+
+        parse_rules!(@NONTERM $iter; $term_type; $nonterm: $ret_type => |$iter| {
+            use ::lexpar::parser::{self, UnshiftIter};
+            use ::lexpar::parser::ParseError::*;
+
+            type ParserResult = parser::Result<$ret_type, $term_type>;
+
+            fn prec(term: &$term_type) -> Option<$prec_type> {
+                #[allow(unused_variables)]
+                match term {
+                    $($op => Some($precedence)),+,
+                    _ => None
+                }
+            }
+
+            fn eval(__term: &$term_type, $lhs: $prim_type, $rhs: $prim_type) -> $ret_type {
+                match __term {
+                    $($op => $logic),+,
+                    _ => unreachable!()
+                }
+            }
+
+            fn parse_binop<I>($iter: &mut UnshiftIter<I>, mut lhs: $prim_type, min_prec: $prec_type)
+                -> ParserResult where I: Iterator<Item = $term_type>
+            {
+                while let Some(la) = $iter.next() {
+                    match prec(&la) {
+                        Some(precedence) if precedence >= min_prec => {
+                            let op = la;
+                            let mut rhs = match $primary($iter) {
+                                Ok(rhs) => rhs,
+                                Err(Eof) | Err(UnexpectedRoot) => break,
+                                Err(err) => return Err(err)
+                            };
+
+                            while let Some(la_inner) = $iter.next() {
+                                match prec(&la_inner) {
+                                    Some(next_prec) if next_prec > precedence => {
+                                        $iter.unshift(la_inner);
+                                        rhs = match parse_binop($iter, rhs, next_prec) {
+                                            Ok(rhs) => rhs,
+                                            Err(err) => return Err(err)
+                                        };
+                                    },
+                                    _ => {
+                                        $iter.unshift(la_inner);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            lhs = eval(&op, lhs, rhs);
+                        },
+                        _ => {
+                            $iter.unshift(la);
+                            break;
+                        }
+                    }
+                }
+
+                Ok(lhs)
+            }
+
+            // with the + repetition it's guaranteed that there will be at least one element
+            let min_prec = vec![ $($precedence),+ ].into_iter().min().unwrap();
+
+            let lhs = $primary($iter)?;
+            parse_binop($iter, lhs, min_prec)
+        });
     };
 
     // Epsilon

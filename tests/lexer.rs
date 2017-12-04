@@ -98,7 +98,6 @@ fn unknown_token() {
     ], |text, _| Unknown(text.to_owned()));
 
     let tokens = lex.src_iter(r#"|"#).collect::<Vec<_>>();
-    println!("{:?}", tokens);
 
     assert_eq!(tokens[0], Token::Unknown(String::from("|")));
 }

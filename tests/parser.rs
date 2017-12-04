@@ -8,12 +8,12 @@ macro_rules! iter {
     ( $($e: expr),* ) => { Box::new(vec![ $($e),* ].into_iter()) }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Kw {
     Fn
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Token {
     Ident(String),
     Integer(i32),
@@ -456,4 +456,122 @@ mod looping {
 
         assert_args!(parse);
     }
+}
+
+mod precedence {
+    #[allow(dead_code)]
+    #[derive(Debug, PartialEq)]
+    enum Token {
+        Integer(i32),
+        LParen,
+        RParen,
+
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Not,
+        Eq,
+        NotEq
+    }
+
+    use self::Token::*;
+
+    #[test]
+    fn parser9_binop_infix_precedence_syntax() {
+        let parse = |iter: Box<Iterator<Item = Token>>| {
+            parse_rules! {
+                term: Token;
+
+                #[binop(infix)]
+                binop: i32 => expr: i32 where precedence: u32 => |lhs, rhs| {
+                    &Eq | 0 => (lhs == rhs) as i32,
+                    &NotEq | 0 => (lhs != rhs) as i32,
+                    &Add | 1 => lhs + rhs,
+                    &Sub | 1 => lhs - rhs,
+                    &Mul | 2 => lhs * rhs,
+                    &Div | 2 => lhs / rhs,
+                },
+
+                expr: i32 => {
+                    [Integer(a)] => a,
+                    [LParen, binop: binop, RParen] => binop?
+                }
+            }
+
+            binop(&mut iter.peekable().into())
+        };
+
+        // 1 + 3 * 5
+        assert_eq! {
+            parse(iter![
+                Integer(1),
+                Add,
+                Integer(3),
+                Mul,
+                Integer(5)
+            ]),
+            Ok(16)
+        }
+
+        // (1 + 3) * 5
+        assert_eq! {
+            parse(iter![
+                LParen,
+                Integer(1),
+                Add,
+                Integer(3),
+                RParen,
+                Mul,
+                Integer(5)
+            ]),
+            Ok(20)
+        }
+
+        // 3 * 4 / 6
+        assert_eq! {
+            parse(iter![
+                Integer(3),
+                Mul,
+                Integer(4),
+                Div,
+                Integer(6)
+            ]),
+            Ok(2)
+        }
+
+        // 1 + 3 * 5 + 8
+        assert_eq! {
+            parse(iter![
+                Integer(1),
+                Add,
+                Integer(3),
+                Mul,
+                Integer(5),
+                Add,
+                Integer(8)
+            ]),
+            Ok(24)
+        }
+
+        // 1 + 3 * 5 + 8 == 24
+        assert_eq! {
+            parse(iter![
+                Integer(1),
+                Add,
+                Integer(3),
+                Mul,
+                Integer(5),
+                Add,
+                Integer(8),
+                Eq,
+                Integer(24)
+            ]),
+            Ok(1)
+        }
+
+        // TODO: 5 - f(3 + 2) where f = |x| x
+    }
+
+    // TODO non copy/clone test
 }
