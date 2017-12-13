@@ -383,6 +383,16 @@ mod looping {
                 $parse(iter![
                     Keyword(Kw::Fn),
                     Ident(String::from("my_fn")),
+                    LParen,
+                    RParen
+                ]),
+                Ok(String::from("my_fn()"))
+            }
+
+            assert_eq! {
+                $parse(iter![
+                    Keyword(Kw::Fn),
+                    Ident(String::from("my_fn")),
                     Ident(String::from("one")),
                     Integer(1),
                     Ident(String::from("five")),
@@ -414,7 +424,7 @@ mod looping {
                         let args = v?.into_iter().rev().fold(String::new(), |acc, arg| {
                             format!("{}, {} = {}", acc, arg.0, arg.1)
                         });
-                        format!("{}({})", fn_name, &args[2..])
+                        format!("{}({})", fn_name, if args.len() > 2 { &args[2..] } else { &args })
                     }
                 }
             }
@@ -446,7 +456,7 @@ mod looping {
                         let args = v?.into_iter().fold(String::new(), |acc, arg| {
                             format!("{}, {} = {}", acc, arg.0, arg.1)
                         });
-                        format!("{}({})", fn_name, &args[2..])
+                        format!("{}({})", fn_name, if args.len() > 2 { &args[2..] } else { &args })
                     }
                 }
             }

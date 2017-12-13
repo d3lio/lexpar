@@ -293,10 +293,7 @@ macro_rules! parse_rules {
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
 
                 #[allow(unreachable_code)]
-                match $iter.peek() {
-                    Some(_) => Err(parser::ParseError::UnexpectedRoot),
-                    None => Ok($acc)
-                }
+                Ok($acc)
             }
 
             fn matcher<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type, __ur: &mut bool) -> ParserResult
