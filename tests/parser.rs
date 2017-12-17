@@ -444,7 +444,6 @@ mod looping {
                 #[fold(args)]
                 args: Vec<(String, String)> => {
                     [Ident(name), Integer(n)] => {
-                        let mut args = args;
                         args.push((name, n.to_string()));
                         args
                     },

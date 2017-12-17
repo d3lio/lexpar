@@ -52,42 +52,6 @@ impl<I> UnshiftIter<I> where I: Iterator {
     }
 }
 
-/// Helper macro for folding
-///
-/// Covers a common case when folding matches into a vector
-///
-/// # Example
-///
-/// ```ignore
-/// #[fold(exprs)]
-/// top_level: Vec<AstNode> => {
-///     [ex: expr] => {
-///         let mut exprs = exprs;
-///         exprs.push(ex?);
-///         exprs
-///     },
-///     [@] => Vec::new()
-/// }
-/// ```
-///
-/// becomes
-///
-/// ```ignore
-/// #[fold(exprs)]
-/// top_level: Vec<AstNode> => {
-///     [ex: expr] => fold_vec!(exprs, ex?),
-///     [@] => Vec::new()
-/// }
-/// ```
-#[macro_export]
-macro_rules! fold_vec {
-    ($acc: ident, $ex: expr) => {{
-        let mut v = $acc;
-        v.push($ex);
-        v
-    }}
-}
-
 /// Macro that generates a parser from a formal grammar.
 ///
 /// **NOTE:** For more info look at the tests.
@@ -290,6 +254,9 @@ macro_rules! parse_rules {
             fn matcher_root<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type) -> ParserResult
             where I: Iterator<Item = $term_type>
             {
+                #[allow(unused_mut)]
+                let mut $acc = $acc;
+
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
 
                 #[allow(unreachable_code)]
@@ -299,6 +266,9 @@ macro_rules! parse_rules {
             fn matcher<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type, __ur: &mut bool) -> ParserResult
             where I: Iterator<Item = $term_type>
             {
+                #[allow(unused_mut)]
+                let mut $acc = $acc;
+
                 parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
 
                 if $iter.peek().is_some() {
