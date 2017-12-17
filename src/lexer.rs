@@ -1,4 +1,4 @@
-//! The `Lexer` module holds structures for parsing source into tokens.
+//! This module holds structures for parsing source into tokens.
 
 use std::rc::Rc;
 use std::borrow::Borrow;
