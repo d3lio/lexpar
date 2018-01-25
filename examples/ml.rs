@@ -16,17 +16,34 @@ fn main args =
     let b = 2
     let c = |x| x
     if a == 1 then c a else c b
-    if a == 2 then
+    if a == 1 then
         c a
-    else if b == 3 then
-        b
+    else if b == 1 then
+        c b
     else
         c 1
 
+if a then
+    if b then
+        c
+    else
+        a
+
 f ((x)) (id 1) z 1.1 -5 c
 
-let g = |x|
-    print x
+let a = ||
+    print 123
+
+fn fib n =
+    let a = 0
+    let b = 1
+    if n == 0 or n == 1 then
+        n
+    else for i in 2..n do
+        let t = a + b
+        a = b
+        b = t
+    b
 "#;
 
 fn main() {

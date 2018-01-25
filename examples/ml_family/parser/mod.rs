@@ -22,6 +22,7 @@ use self::ast::{
     BlockExpr,
     BinExpr,
     IfExpr,
+    ForExpr,
     VariableDef
 };
 
@@ -96,12 +97,16 @@ parse_rules! {
 
     #[binop(infix)]
     expr: AstNode => _expr: AstNode where precedence: u32 => |lhs, rhs| {
-        &(_, Eq)         | 0 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Eq, lhs, rhs }),
-        &(_, NotEq)      | 0 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::NotEq, lhs, rhs }),
-        &(_, Plus)       | 1 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Add, lhs, rhs }),
-        &(_, Minus)      | 1 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Sub, lhs, rhs }),
-        &(_, Asterisk)   | 2 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Mul, lhs, rhs }),
-        &(_, FSlash)     | 2 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Div, lhs, rhs }),
+        &(_, Assign)     | 0 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Assign, lhs, rhs }),
+        &(_, KwOr)       | 1 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Or, lhs, rhs }),
+        &(_, KwAnd)      | 1 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::And, lhs, rhs }),
+        &(_, Eq)         | 2 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Eq, lhs, rhs }),
+        &(_, NotEq)      | 2 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::NotEq, lhs, rhs }),
+        &(_, DoubleDot)  | 3 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Range, lhs, rhs }),
+        &(_, Plus)       | 4 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Add, lhs, rhs }),
+        &(_, Minus)      | 4 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Sub, lhs, rhs }),
+        &(_, Asterisk)   | 5 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Mul, lhs, rhs }),
+        &(_, FSlash)     | 5 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Div, lhs, rhs }),
     },
 
     _expr: AstNode => {
@@ -116,6 +121,7 @@ parse_rules! {
             ast!(lspan, ClosureExpr { proto, body })
         },
 
+        // If expression
         [(mut span, KwIf), cond: expr, (_, KwThen), then: expr, el: _else] => {
             let cond = cond?;
             let then = then?;
@@ -127,6 +133,14 @@ parse_rules! {
                 span.hi = then.span.hi;
                 ast!(span, IfExpr { cond, then, el: None })
             }
+        },
+
+        // For expression
+        [(mut span, KwFor), (vspan, Ident(var)), (_, KwIn), iter: expr, (_, KwDo), body: expr] => {
+            let body = body?;
+            span.hi = body.span.hi;
+            let var = ast!(vspan, VariableExpr { name: var });
+            ast!(span, ForExpr { var, iter: iter?, body })
         },
 
         // Block expression

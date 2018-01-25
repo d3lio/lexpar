@@ -26,8 +26,12 @@ impl Debug for AstNode {
 
 #[derive(Debug)]
 pub enum BinOp {
+    Assign,
+    Or,
+    And,
     Eq,
     NotEq,
+    Range,
     Add,
     Sub,
     Mul,
@@ -93,6 +97,12 @@ ast_nodes! {
         cond: AstNode,
         then: AstNode,
         el: Option<AstNode>
+    }
+
+    struct ForExpr {
+        var: AstNode,
+        iter: AstNode,
+        body: AstNode
     }
 
     struct VariableDef {

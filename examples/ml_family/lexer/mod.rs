@@ -18,9 +18,14 @@ pub fn lexer() -> Lexer<(Span, Token)> {
         r"if"                       => |_, span| (span, KwIf),
         r"then"                     => |_, span| (span, KwThen),
         r"else"                     => |_, span| (span, KwElse),
+        r"for"                      => |_, span| (span, KwFor),
+        r"in"                       => |_, span| (span, KwIn),
+        r"do"                       => |_, span| (span, KwDo),
+        r"or"                       => |_, span| (span, KwOr),
+        r"and"                      => |_, span| (span, KwAnd),
 
         r"[_a-zA-Z][_a-zA-Z0-9]*"   => |text, span| (span, Ident(text.to_owned())),
-        r"-?[0-9]+(?:\.[0-9]*)?"    => |text, span| (span, Number(text.parse().unwrap())),
+        r"-?[0-9]+(?:\.[0-9]+)?"    => |text, span| (span, Number(text.parse().unwrap())),
 
         r"\("                       => |_, span| (span, LParen),
         r"\)"                       => |_, span| (span, RParen),
@@ -35,6 +40,7 @@ pub fn lexer() -> Lexer<(Span, Token)> {
         r"/"                        => |_, span| (span, FSlash),
         r"=="                       => |_, span| (span, Eq),
         r"!="                       => |_, span| (span, NotEq),
+        r"\.\."                     => |_, span| (span, DoubleDot),
 
         r"!"                        => |_, span| (span, Excl),
 

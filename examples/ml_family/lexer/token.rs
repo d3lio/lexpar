@@ -8,7 +8,8 @@ pub enum Token {
     KwFn,
     KwLet,
     KwIf, KwThen, KwElse,
-    // KwFor, KwIn, KwDo,
+    KwFor, KwIn, KwDo,
+    KwOr, KwAnd,
 
     // Data
     Ident(String),
@@ -23,6 +24,7 @@ pub enum Token {
     Plus, Minus,
     Asterisk, FSlash,
     Eq, NotEq,
+    DoubleDot,
 
     // Unary Operators
     Excl,
