@@ -33,6 +33,7 @@ enum Token {
     Ident(String),
     Float(f32),
     Integer(i32),
+    Text(String),
     LParen,
     RParen,
     LBracket,
@@ -52,26 +53,27 @@ use self::Token::*;
 #[test]
 fn some_tokens() {
     let lex = Lexer::new(lex_rules![
-        r"[ \t\n]+"                 => |text, span| (span, Whitespace(text.to_owned())),
-        r"/\*[^(?:*/)]*\*/"         => |text, span| (span, Comment(text[2..text.len() - 2].to_owned())),
-        r"//[^\n]*"                 => |text, span| (span, Comment(text[2..].to_owned())),
-        Kw::pattern()               => |text, span| (span, Keyword(Kw::from(text))),
-        r"[_a-zA-Z][_a-zA-Z0-9]*"   => |text, span| (span, Ident(text.to_owned())),
-        r"-?[0-9]+\.[0-9]*"         => |text, span| (span, Float(text.parse().unwrap())),
-        r"-?[0-9]+"                 => |text, span| (span, Integer(text.parse().unwrap())),
-        r"->"                       => |_, span| (span, Arrow),
-        r"="                        => |_, span| (span, Assign),
-        r"\("                       => |_, span| (span, LParen),
-        r"\)"                       => |_, span| (span, RParen),
-        r"\["                       => |_, span| (span, LBracket),
-        r"\]"                       => |_, span| (span, RBracket),
-        r"\{"                       => |_, span| (span, LBrace),
-        r"\}"                       => |_, span| (span, RBrace),
-        r"\+"                       => |_, span| (span, Plus),
-        r"\-"                       => |_, span| (span, Minus),
-        r"\*"                       => |_, span| (span, Asterisk),
-        r"/"                        => |_, span| (span, FSlash)
-    ], |text, span| (span, Unknown(text.to_owned())));
+        r"[ \t\n]+"                 => |span, text, _| (span, Whitespace(text.to_owned())),
+        r"/\*[^(?:*/)]*\*/"         => |span, text, _| (span, Comment(text[2..text.len() - 2].to_owned())),
+        r"//[^\n]*"                 => |span, text, _| (span, Comment(text[2..].to_owned())),
+        Kw::pattern()               => |span, text, _| (span, Keyword(Kw::from(text))),
+        r"[_a-zA-Z][_a-zA-Z0-9]*"   => |span, text, _| (span, Ident(text.to_owned())),
+        r"-?[0-9]+\.[0-9]*"         => |span, text, _| (span, Float(text.parse().unwrap())),
+        r"-?[0-9]+"                 => |span, text, _| (span, Integer(text.parse().unwrap())),
+        r#""(.*)""#                 => |span, _, caps| (span, Text(caps[0].to_owned())),
+        r"->"                       => |span, _, _| (span, Arrow),
+        r"="                        => |span, _, _| (span, Assign),
+        r"\("                       => |span, _, _| (span, LParen),
+        r"\)"                       => |span, _, _| (span, RParen),
+        r"\["                       => |span, _, _| (span, LBracket),
+        r"\]"                       => |span, _, _| (span, RBracket),
+        r"\{"                       => |span, _, _| (span, LBrace),
+        r"\}"                       => |span, _, _| (span, RBrace),
+        r"\+"                       => |span, _, _| (span, Plus),
+        r"\-"                       => |span, _, _| (span, Minus),
+        r"\*"                       => |span, _, _| (span, Asterisk),
+        r"/"                        => |span, _, _| (span, FSlash)
+    ], |span, text| (span, Unknown(text.to_owned())));
 
     let tokens = lex.src_iter(
         r#"
@@ -80,6 +82,7 @@ fn some_tokens() {
         line
         comment
         */
+        "string"
         -10 5
         //hello fdsf
         //|
@@ -87,15 +90,16 @@ fn some_tokens() {
 
     assert_eq!(tokens[2].1, Token::Asterisk);
     assert_eq!(tokens[12].1, Token::Float(-12.5));
-    assert_eq!(tokens[17].1, Token::Integer(-10));
-    assert_eq!(tokens[19].1, Token::Integer(5));
+    assert_eq!(tokens[17].1, Token::Text("string".to_owned()));
+    assert_eq!(tokens[19].1, Token::Integer(-10));
+    assert_eq!(tokens[21].1, Token::Integer(5));
 }
 
 #[test]
 fn unknown_token() {
     let lex = Lexer::new(lex_rules![
-        "test" => |_, _| Unknown("test".to_owned())
-    ], |text, _| Unknown(text.to_owned()));
+        "test" => |_, _, _| Unknown("test".to_owned())
+    ], |_, text| Unknown(text.to_owned()));
 
     let tokens = lex.src_iter(r#"|"#).collect::<Vec<_>>();
 

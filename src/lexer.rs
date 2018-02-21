@@ -43,11 +43,16 @@ impl Span {
     }
 }
 
+struct Arm<T> {
+    captures: usize,
+    handle: Box<for<'a> Fn(Span, &'a str, Vec<&'a str>) -> T>
+}
+
 // TODO(low) remove this in favour of lifetimes.
 struct LexerInternal<T> {
     matcher: Regex,
-    arms: Vec<Box<for<'a> Fn(&'a str, Span) -> T>>,
-    unknown: Box<for<'a> Fn(&'a str, Span) -> T>
+    arms: Vec<Arm<T>>,
+    unknown: Box<for<'a> Fn(Span, &'a str) -> T>
 }
 
 /// Generic token lexer
@@ -59,17 +64,15 @@ struct LexerInternal<T> {
 /// found. In the callback the user can execute custom logic and return the corresponding token.
 ///
 /// There is also the `unknown` callback which is invoked when non of the rules match. The first
-/// argument is a `&str` which contains only the first errorneos char and a `Span`. The `Lexer`
+/// argument is a `&str` which contains only the first erroneous char and a `Span`. The `Lexer`
 /// expects that the user either panics in the unknown callback or returns a special token at which
 /// point the `LexIter` will move the matching position 1 character forward so it can continue
 /// matching after an error. The former behavior is more common as the only purpose of returning
-/// a special errorneus token would be for generating better errors.
+/// a special erroneous token would be for generating better errors.
 ///
 /// # Notes
 ///
-/// * The `Lexer` is just a builder for `LexIter`s which do the actual work.
-/// * Avoid capture groups inside the rules since this will cause the lexer to lookup in the wrong
-/// capture group. Instead use non capture groups `(?:)`.
+/// The `Lexer` is just a builder for `LexIter`s which do the actual work.
 ///
 /// # Examples
 ///
@@ -85,9 +88,9 @@ struct LexerInternal<T> {
 /// # fn main() {
 /// let lex = Lexer::new(lex_rules![
 ///     // snake_case
-///     "[_a-z]+" => |text, span| (Token::Snake(text.to_owned()), span),
+///     "[_a-z]+" => |span, text, _| (Token::Snake(text.to_owned()), span),
 ///     // integer
-///     "[0-9]+" => |text, span| (Token::Int(text.parse().unwrap()), span)
+///     "[0-9]+" => |span, text, _| (Token::Int(text.parse().unwrap()), span)
 /// ], |_, _| panic!("unknown"));
 /// # }
 /// ```
@@ -111,8 +114,8 @@ pub struct LexIter<T> {
 
 impl<T> Lexer<T> {
     /// Create a new lexer with the given `rules` and `unknown` token callback.
-    pub fn new<F>(rules: Vec<(&str, Box<for<'a> Fn(&'a str, Span) -> T>)>, unknown: F) -> Self
-    where F: 'static + for<'a> Fn(&'a str, Span) -> T {
+    pub fn new<F>(rules: Vec<(&str, Box<for<'a> Fn(Span, &'a str, Vec<&'a str>) -> T>)>, unknown: F) -> Self
+    where F: 'static + for<'a> Fn(Span, &'a str) -> T {
         if rules.is_empty() {
             panic!("Empty rules set");
         }
@@ -122,13 +125,15 @@ impl<T> Lexer<T> {
             let mut arms = Vec::new();
             let mut rules_iter = rules.into_iter();
 
-            if let Some((pat, f)) = rules_iter.next() {
+            if let Some((pat, handle)) = rules_iter.next() {
+                let captures = Regex::new(pat).unwrap().captures_len();
                 pattern.push_str(&format!("({})", pat));
-                arms.push(f);
+                arms.push(Arm { captures, handle });
 
-                while let Some((pat, f)) = rules_iter.next() {
+                for (pat, handle) in rules_iter {
+                    let captures = Regex::new(pat).unwrap().captures_len();
                     pattern.push_str(&format!("|({})", pat));
-                    arms.push(f);
+                    arms.push(Arm { captures, handle });
                 }
             }
 
@@ -159,37 +164,54 @@ impl<T> Iterator for LexIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
-        if self.pos != self.src.len() {
-            if let Some(caps) = self.internal.matcher.captures(&self.src[self.pos..]) {
-                // skip 0th capture since it corresponds to the whole regex capture
-                let (pos, func) = self.internal.arms.iter()
-                    .enumerate()
-                    .find(|&(pos, _)| caps.get(pos + 1).is_some())
-                    .unwrap();
-
-                let rmatch = caps.get(pos + 1).unwrap();
-                let text = rmatch.as_str();
-                let prev_line = self.line;
-                let prev_pos = self.pos;
-
-                self.line += text.chars().filter(|&x| x == '\n').count();
-                self.pos += rmatch.end();
-
-                Some(func(text, Span {
-                    lo: prev_pos,
-                    hi: self.pos,
-                    line: prev_line
-                }))
-            } else {
-                self.pos += 1;
-                Some((self.internal.unknown)(&self.src[(self.pos - 1)..self.pos], Span {
-                    lo: self.pos - 1,
-                    hi: self.pos,
-                    line: self.line
-                }))
-            }
-        } else {
-            None
+        if self.pos >= self.src.len() {
+            return None;
         }
+
+        let res = if let Some(caps) = self.internal.matcher.captures(&self.src[self.pos..]) {
+            let (pos, arm) = {
+                // skip 0th capture since it corresponds to the whole regex capture
+                let mut pos = 1;
+                let mut arm = None;
+                for a in &self.internal.arms {
+                    if caps.get(pos).is_some() {
+                        arm = Some(a);
+                        break;
+                    }
+                    pos += a.captures;
+                };
+                (pos, arm.unwrap())
+            };
+
+            let mat = caps.get(pos).unwrap();
+            let text = mat.as_str();
+            let prev_line = self.line;
+            let prev_pos = self.pos;
+
+            self.line += text.chars().filter(|&x| x == '\n').count();
+            self.pos += mat.end();
+
+            let span = Span {
+                lo: prev_pos,
+                hi: self.pos,
+                line: prev_line
+            };
+
+            let subcaptures: Vec<_> = (1..arm.captures)
+                .map(|idx| caps.get(idx + pos).unwrap().as_str())
+                .collect();
+
+            (arm.handle)(span, text, subcaptures)
+        } else {
+            self.pos += 1;
+            let span = Span {
+                lo: self.pos - 1,
+                hi: self.pos,
+                line: self.line
+            };
+            (self.internal.unknown)(span, &self.src[(self.pos - 1)..self.pos])
+        };
+
+        Some(res)
     }
 }
