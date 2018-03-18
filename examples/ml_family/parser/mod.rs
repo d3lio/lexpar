@@ -96,7 +96,7 @@ parse_rules! {
     },
 
     #[binop(infix)]
-    expr: AstNode => _expr: AstNode where precedence: u32 => |lhs, rhs| {
+    expr: AstNode => _expr where u32 => |lhs, rhs| {
         &(_, Assign)     | 0 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Assign, lhs, rhs }),
         &(_, KwOr)       | 1 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::Or, lhs, rhs }),
         &(_, KwAnd)      | 1 => ast!(span!(lhs, rhs), BinExpr { op: BinOp::And, lhs, rhs }),

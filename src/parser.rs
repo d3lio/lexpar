@@ -270,6 +270,7 @@
 //! ```
 //! # #[macro_use]
 //! # extern crate lexpar;
+//! # enum Token { Something }
 //! # use self::Token::*;
 //! # fn main() {
 //! parse_rules! {
@@ -404,7 +405,7 @@
 //!     term: &'static str;
 //!
 //!     #[binop(infix)]
-//!     expr: Ast => _expr: Ast where precedence: u32 => |lhs, rhs| {
+//!     expr: Ast => _expr where u32 => |lhs, rhs| {
 //!         &"=="  | 0 => Ast::binop("eq", lhs, rhs),
 //!         &"!="  | 0 => Ast::binop("neq", lhs, rhs),
 //!         &"+"   | 1 => Ast::binop("add", lhs, rhs),
@@ -425,11 +426,11 @@
 //! Firstly `#[binop(infix)]` triggers the special syntax.
 //! Then there are three things to observe:
 //!
-//! * naming the nonterminal and giving it a type `expr: (String, i32, i32)`
-//! * giving the name of the nonterminal used for the left and right-hand-sides `_expr`.
-//! * declaring the precedence type as `u32`. The `precedence` word can be any other identifier.
-//! It does not make any difference and is only there for cosmetics. The type can be anything with
-//! ordering but stick to unsigned integers preferably.
+//! 1. Naming the nonterminal and giving it a type `expr: Ast`.
+//! 2. Giving the name of the nonterminal used for the left and right-hand-sides as `_expr`. It needs to have
+//! the same type as the this nonterminal.
+//! 3. Declaring the precedence type as `u32`. The type can be anything with ordering but preferably
+//! stick to unsigned integers.
 //!
 //! After that we get to the actual rules. The closure looking syntax describes how to handle the
 //! different operators. `lhs` and `rhs` can be any identifiers and are respectively the
@@ -720,16 +721,12 @@ macro_rules! parse_rules {
         @NONTERM $iter: ident; $term_type: ty;
 
         #[binop($affix: ident)]
-        $nonterm: ident : $ret_type: ty => $primary: ident : $prim_type: ty where
-        $__prec_name: ident : $prec_type:ty => |$lhs: ident, $rhs: ident| {
-            $($binop_def: tt)+
-        },
+        $nonterm: ident : $prim_type: ty => $primary: ident where
+        $prec_type :ty => |$lhs: ident, $rhs: ident| { $($binop_def: tt)+ },
         $($nonterm_def: tt)+
     } => {
         parse_rules!(@NONTERM $iter; $term_type; #[binop($affix)]
-        $nonterm: $ret_type => $primary: $prim_type where $__prec_name: $prec_type => |$lhs, $rhs| {
-            $($binop_def)+
-        });
+        $nonterm: $prim_type => $primary where $prec_type => |$lhs, $rhs| { $($binop_def)+ });
 
         parse_rules!(@NONTERM $iter; $term_type; $($nonterm_def)+);
     };
@@ -858,16 +855,16 @@ macro_rules! parse_rules {
 
     // Infix binop syntax
     //
-    // #[binop(infix)] <nonterm>: <type> => <primary_nonterm>: <primary_type>
-    // where precedence: <prec_type> => |<lhs>, <rhs>| {
+    // #[binop(infix)] <nonterm>: <type> => <primary_nonterm>
+    // where <prec_type> => |<lhs>, <rhs>| {
     //     (<op> | <precedence> => logic),+
     // }
     {
         @NONTERM $iter: ident; $term_type: ty;
 
         #[binop($affix: ident)]
-        $nonterm: ident : $ret_type: ty => $primary: ident : $prim_type: ty where
-        $__prec_name: ident : $prec_type:ty => |$lhs: ident, $rhs: ident| {
+        $nonterm: ident : $prim_type: ty => $primary: ident where
+        $prec_type: ty => |$lhs: ident, $rhs: ident| {
                 $($op: pat | $precedence: expr => $logic: expr),+
                 $(,)*
             }
@@ -893,11 +890,11 @@ macro_rules! parse_rules {
             return lhs
         */
 
-        parse_rules!(@NONTERM $iter; $term_type; $nonterm: $ret_type => |$iter| {
+        parse_rules!(@NONTERM $iter; $term_type; $nonterm: $prim_type => |$iter| {
             use ::lexpar::parser::{self, UnshiftIter};
             use ::lexpar::parser::ParseError::*;
 
-            type ParserResult = parser::Result<$ret_type, $term_type>;
+            type ParserResult = parser::Result<$prim_type, $term_type>;
 
             fn prec(term: &$term_type) -> Option<$prec_type> {
                 #[allow(unused_variables)]
@@ -907,7 +904,7 @@ macro_rules! parse_rules {
                 }
             }
 
-            fn eval(__term: &$term_type, $lhs: $prim_type, $rhs: $prim_type) -> $ret_type {
+            fn eval(__term: &$term_type, $lhs: $prim_type, $rhs: $prim_type) -> $prim_type {
                 match __term {
                     $($op => $logic),+,
                     _ => unreachable!()

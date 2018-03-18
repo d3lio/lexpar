@@ -471,7 +471,7 @@ mod precedence {
     #[allow(dead_code)]
     #[derive(Debug, PartialEq)]
     enum Token {
-        Integer(i32),
+        Int(i32),
         LParen,
         RParen,
 
@@ -493,7 +493,7 @@ mod precedence {
                 term: Token;
 
                 #[binop(infix)]
-                binop: i32 => expr: i32 where precedence: u32 => |lhs, rhs| {
+                binop: i32 => expr where u32 => |lhs, rhs| {
                     &Eq | 0 => (lhs == rhs) as i32,
                     &NotEq | 0 => (lhs != rhs) as i32,
                     &Add | 1 => lhs + rhs,
@@ -503,7 +503,7 @@ mod precedence {
                 },
 
                 expr: i32 => {
-                    [Integer(a)] => a,
+                    [Int(a)] => a,
                     [LParen, binop: binop, RParen] => binop?
                 }
             }
@@ -512,72 +512,15 @@ mod precedence {
         };
 
         // 1 + 3 * 5
-        assert_eq! {
-            parse(iter![
-                Integer(1),
-                Add,
-                Integer(3),
-                Mul,
-                Integer(5)
-            ]),
-            Ok(16)
-        }
-
+        assert_eq!(parse(iter![Int(1), Add, Int(3), Mul, Int(5)]), Ok(16));
         // (1 + 3) * 5
-        assert_eq! {
-            parse(iter![
-                LParen,
-                Integer(1),
-                Add,
-                Integer(3),
-                RParen,
-                Mul,
-                Integer(5)
-            ]),
-            Ok(20)
-        }
-
+        assert_eq!(parse(iter![LParen, Int(1), Add, Int(3), RParen, Mul, Int(5)]), Ok(20));
         // 3 * 4 / 6
-        assert_eq! {
-            parse(iter![
-                Integer(3),
-                Mul,
-                Integer(4),
-                Div,
-                Integer(6)
-            ]),
-            Ok(2)
-        }
-
+        assert_eq!(parse(iter![Int(3), Mul, Int(4), Div, Int(6)]), Ok(2));
         // 1 + 3 * 5 + 8
-        assert_eq! {
-            parse(iter![
-                Integer(1),
-                Add,
-                Integer(3),
-                Mul,
-                Integer(5),
-                Add,
-                Integer(8)
-            ]),
-            Ok(24)
-        }
-
+        assert_eq!(parse(iter![Int(1), Add, Int(3), Mul, Int(5), Add, Int(8)]), Ok(24));
         // 1 + 3 * 5 + 8 == 24
-        assert_eq! {
-            parse(iter![
-                Integer(1),
-                Add,
-                Integer(3),
-                Mul,
-                Integer(5),
-                Add,
-                Integer(8),
-                Eq,
-                Integer(24)
-            ]),
-            Ok(1)
-        }
+        assert_eq!(parse(iter![Int(1), Add, Int(3), Mul, Int(5), Add, Int(8), Eq, Int(24)]), Ok(1));
 
         // TODO: 5 - f(3 + 2) where f = |x| x
     }
