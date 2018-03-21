@@ -60,7 +60,7 @@ parse_rules! {
     #[fold(nodes)]
     top_level: Vec<AstNode> => {
         [node: _top_level] => {
-            if let Some(node) = node? {
+            if let Some(node) = node {
                 nodes.push(node);
             }
             nodes
@@ -69,8 +69,8 @@ parse_rules! {
     },
 
     _top_level: Option<AstNode> => {
-        [def: def] => Some(def?),
-        [expr: expr] => Some(expr?),
+        [def: def] => Some(def),
+        [expr: expr] => Some(expr),
         [(_, Delimiter)] => None
     }
 }
@@ -82,14 +82,11 @@ parse_rules! {
     def: AstNode => {
         // Variable definition
         [(span, KwLet), (_, Ident(name)), (_, Assign), ex: expr] => {
-            let ex = ex?;
             ast!(span.extend(ex.span.hi), VariableDef { name, value: ex })
         },
 
         // Function definition
         [proto: prototype, body: expr] => {
-            let proto = proto?;
-            let body = body?;
             let span = proto.span.clone().extend(body.span.hi);
             ast!(span, FunctionExpr { proto, body })
         }
@@ -110,22 +107,18 @@ parse_rules! {
     },
 
     _expr: AstNode => {
-        [ex: __expr] => ex?,
+        [ex: __expr] => ex,
 
         // Closure definition
         [(mut lspan, Pipe), params: params, (rspan, Pipe), body: expr] => {
             lspan.hi = rspan.hi;
-            let proto = ast!(lspan.clone(), FunctionProtoExpr { name: None, params: params? });
-            let body = body?;
+            let proto = ast!(lspan.clone(), FunctionProtoExpr { name: None, params: params });
             lspan.hi = body.span.hi;
             ast!(lspan, ClosureExpr { proto, body })
         },
 
         // If expression
         [(mut span, KwIf), cond: expr, (_, KwThen), then: expr, el: _else] => {
-            let cond = cond?;
-            let then = then?;
-            let el = el?;
             if let Some(el) = el {
                 span.hi = el.span.hi;
                 ast!(span, IfExpr { cond, then, el: Some(el) })
@@ -134,24 +127,22 @@ parse_rules! {
                 ast!(span, IfExpr { cond, then, el: None })
             }
         },
-
         // For expression
         [(mut span, KwFor), (vspan, Ident(var)), (_, KwIn), iter: expr, (_, KwDo), body: expr] => {
-            let body = body?;
             span.hi = body.span.hi;
             let var = ast!(vspan, VariableExpr { name: var });
-            ast!(span, ForExpr { var, iter: iter?, body })
+            ast!(span, ForExpr { var, iter: iter, body })
         },
 
         // Block expression
         [(mut lspan, BlockStart), top: top_level, (rspan, BlockEnd)] => {
             lspan.hi = rspan.hi;
-            ast!(lspan, BlockExpr { exprs: top? })
+            ast!(lspan, BlockExpr { exprs: top })
         },
 
         // Variable expression or function call
         [(mut span, Ident(name)), args: call] => {
-            if let Some((call_span, args)) = args? {
+            if let Some((call_span, args)) = args {
                 span.hi = call_span.hi;
                 ast!(span, CallExpr { name, args })
             } else {
@@ -162,10 +153,10 @@ parse_rules! {
 
     __expr: AstNode => {
         // Paren expression
-        [(_, LParen), ex: expr, (_, RParen)] => ex?,
+        [(_, LParen), ex: expr, (_, RParen)] => ex,
 
         // Literal expression
-        [literal: literal] => literal?,
+        [literal: literal] => literal,
     },
 
     literal: AstNode => {
@@ -181,7 +172,6 @@ parse_rules! {
     // Variable expression or function call
     call: Option<(Span, Vec<AstNode>)> => {
         [args: args] => {
-            let args = args?;
             if !args.is_empty() {
                 let span = args[0].span.clone().extend(args.last().unwrap().span.hi);
                 Some((span, args))
@@ -196,14 +186,14 @@ parse_rules! {
     #[fold(args)]
     args: Vec<AstNode> => {
         [ex: arg] => {
-            args.push(ex?);
+            args.push(ex);
             args
         },
         [@] => Vec::new()
     },
 
     arg: AstNode => {
-        [ex: __expr] => ex?,
+        [ex: __expr] => ex,
 
         // Variable expression
         [(span, Ident(name))] => ast!(span, VariableExpr { name })
@@ -223,7 +213,7 @@ parse_rules! {
             (rspan, Assign)
         ] => {
             lspan.hi = rspan.hi;
-            ast!(lspan, FunctionProtoExpr { name: Some(name), params: params? })
+            ast!(lspan, FunctionProtoExpr { name: Some(name), params: params })
         }
     },
 
@@ -243,7 +233,7 @@ parse_rules! {
     term: Term;
 
     _else: Option<AstNode> => {
-        [(_, KwElse), ex: expr] => Some(ex?),
+        [(_, KwElse), ex: expr] => Some(ex),
         [@] => None
     }
 }

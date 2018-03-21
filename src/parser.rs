@@ -58,7 +58,7 @@
 //! > `(123)`<br>
 //! > `(((5)))`
 //!
-//! The `parse_rules!` macro can be used to express that in a Rusty way
+//! We can use the `parse_rules!` macro to express that in a Rusty way
 //!
 //! ```no_run
 //! # #[macro_use]
@@ -77,7 +77,7 @@
 //!
 //!     expression: u32 => {
 //!         [Number(value)] => value,
-//!         [LParen, expr: expression, RParen] => expr?
+//!         [LParen, expr: expression, RParen] => expr
 //!     }
 //! }
 //! # }
@@ -111,16 +111,16 @@
 //! # use Token::*;
 //! # parse_rules! { term: Token; expression: u32 => {
 //! [Number(value)] => value,
-//! [LParen, expr: expression, RParen] => expr?
+//! [LParen, expr: expression, RParen] => expr
 //! # }}}
 //! ```
 //!
 //! Those are the rules of a nonterminal. It's very similar to Rust's `match`. Each rules is an arm
-//! of the match. They are also comma seperated. There are differences. One of them is that each
+//! of the match. They are also comma seperated but there are differences. One of them is that each
 //! rule follows this format
 //!
 //! ```ignore
-//! [ (terminal|nonterminal)+ ] => rust_expression
+//! [ (terminal|nonterminal),+ ] => rust_expression
 //! ```
 //!
 //! Inside the brackets we can match more than just patterns (terminals), we can match
@@ -128,19 +128,12 @@
 //! by the macro and then decide what to do with the result. Example syntax would be
 //!
 //! * `Number(num)` is a destructuring pattern
-//! * `expr: expression` expands to the statement `let expr = expression(/* ... */)`
+//! * `expr: expression` expands to the statement `let expr = expression(/* ... */)?`
 //!
-//! In our little example `expr: expression` is a recursive call of `expression`. As we said the
-//! return value is always a `Result`. That's why we can see the `expr?` in
+//! In our little example `expr: expression` is a recursive call of `expression`. We'll see why
+//! there is a `?` in the expanded statement in the next section.
 //!
-//! ```ignore
-//! [LParen, expr: expression, RParen] => expr?
-//! ```
-//!
-//! Thats just Rust's `?` operator to propagate parsing errors.
-//!
-//! Extending the example into a slower and more verbose form shows how multiple nonterminals
-//! can be defined
+//! Extending the example into a more verbose form shows how multiple nonterminals can be defined
 //!
 //! ```no_run
 //! # #[macro_use]
@@ -156,8 +149,8 @@
 //!     },
 //!
 //!     expression: u32 => {
-//!         [num: number] => num?,
-//!         [LParen, expr: expression, RParen] => expr?
+//!         [num: number] => num,
+//!         [LParen, expr: expression, RParen] => expr
 //!     }
 //! }
 //! # }
@@ -199,15 +192,18 @@
 //! }
 //! ```
 //!
+//! This is why in the previous section we saw a `?` in the expanded statement of a nonterminal
+//! match. It propagates parsing errors internally so you don't have to worry about them.
+//!
 //! # User defined errors
 //!
 //! If necessary a nonterminal can be defined with a return type as `Result<...>`. Then we can have
 //! more than just the normal parsing errors - we can match each nonterminal result instead of
 //! propagating it with `?` and assemble our own errors and warnings. This could be used to
-//! improve syntax errors for your compiler/interpreter.
+//! improve the error variants for your compiler/interpreter.
 //!
 //! Right now the parsers is limited in the way that we have to handle custom errors ourselves
-//! instead of using the macro to do it for us. This is a future goal for improvement.
+//! instead of using the macro to do it for us. This is a goal for future improvement.
 //!
 //! # Epsilon, recursion and folding
 //!
@@ -248,17 +244,12 @@
 //!
 //! Everything seems familiar except `[@]`. What is that?
 //! Grammars have the concept of an 'empty token'. It's usually called `epsilon` and that's how
-//! we'll call it as well. It is used to express that any token is a match.
-//!
-//! To get a better idea of epsilon imagine a string split into characters where epsilon is the
-//! empty string/character. It changes nothing but can always be put in between other characters
-//! without changing the final result.
+//! we'll call it as well. It's used to match the empty string `""` or in our case it's like an
+//! `else` arm for the nonterminal just like `_` is in match expressions.
 //!
 //! So the epsilon is a away of saying
 //!
 //! > Nothing matched so far but it's OK since we can use this default value.
-//!
-//! much like an else (`_ =>`) arm for match statements.
 //!
 //! It can be used only as the last arm of a nonterminal.
 //!
@@ -277,8 +268,8 @@
 //!     term: Token;
 //!
 //!     zero_or_more: Vec<()> => {
-//!         [Something, accumulator: zero_or_more] => {
-//!             let mut acc = accumulator?;
+//!         [Something, acc: zero_or_more] => {
+//!             let mut acc = acc;
 //!             acc.push(());
 //!             acc
 //!         },
@@ -324,13 +315,13 @@
 //!
 //! As a result it will use way less stack frames and contain the items in the right order.
 //! Win-win situation. Doing a little bit of code patter matching we can see that we've replaced
-//! the call to the nonterminal with a `#[fold(acc)]` and no longer have to handle the parse result.
-//! The `acc` can be any identifier we want to name our accumulator variable and it's always
-//! mutable.
+//! the call to the nonterminal with a `#[fold(acc)]`. The `acc` can be any identifier we want to
+//! name our accumulator variable and it's always mutable.
 //!
 //! The down side of this is that we can't have multiple arms in the nonterminal.
 //! This might be improved in later versions of the crate. Right now it takes exactly one matching
-//! arm and an epsilon arm which is the starting value of the accumulator.
+//! arm and an epsilon arm which is the starting value of the accumulator. A workaround would be to
+//! call another nonterminal that has the desired matching arms.
 //!
 //! ### One or more
 //!
@@ -347,7 +338,7 @@
 //!
 //!     one_or_more: Vec<()> => {
 //!         [Something, zom: zero_or_more] => {
-//!             let mut zom = zom?;
+//!             let mut zom = zom;
 //!             zom.insert(0, ());
 //!             zom
 //!         }
@@ -368,10 +359,10 @@
 //! Some computational time could be save by creating a vector with expected or averaged capacity
 //! and inserting a `mem::uninitialized` element before pushing the folded elements. Then the
 //! first element that is matched in `one_or_more` can be inserted into the vector with
-//! `mem:replace` and we must `mem::forget` the element returned from the replace to prevent Rust
-//! from dropping an uninitialized value. This is an advanced approach so if you're not familiar
-//! with what the functions do you can go and read on them in the Rust docs. In later versions of
-//! the crate this construct could receive it's own syntax for convenience.
+//! `mem:replace` and the element returned from the replace must be passed to `mem::forget`
+//! to prevent Rust from dropping an uninitialized value. This is an advanced approach so if you're
+//! not familiar with what the functions do you can go and read on them in the Rust docs. In later
+//! versions of the crate this construct could receive it's own syntax for convenience.
 //!
 //! ### Synopsis
 //!
@@ -381,7 +372,7 @@
 //! # Binary operators and precedence
 //!
 //! In this section we'll see how to define infix binary operators. This is always a bit of a
-//! hustle to define by hand so the macro provides a syntax for that as well.
+//! hustle to define by hand and so the macro provides a syntax for that.
 //!
 //! Without going through all the trial and error examples lets jump straight into the working
 //! definition
@@ -455,8 +446,12 @@
 //! parse_rules! {
 //!     term: &'static str;
 //!
+//!     prefix: bool => {
+//!         [op: not] => op
+//!     },
+//!
 //!     not: bool => {
-//!         ["!", expr: expr] => !(expr?)
+//!         ["!", expr: expr] => !expr
 //!     },
 //!
 //!     expr: bool => {
@@ -476,8 +471,11 @@
 //! parse_rules! {
 //!     term: &'static str;
 //!
-//!     maybe: bool => {
-//!         [expr: expr, "?"] => (expr?).is_ok()
+//!     postfix: bool => {
+//!         [expr: expr, op] => match op {
+//!             "?" => expr.is_ok(),
+//!             _ => false
+//!         }
 //!     },
 //!
 //!     expr: Result<(), ()> => {
@@ -508,7 +506,8 @@
 //! ```
 //!
 //! The `iter` is a mutable reference to the `UnshiftableIter` that the internals use.
-//! As opposing to the normal nonterminals we need to wrap our result in `Ok` or `Err` which gives
+//! As opposing to the normal nonterminals we need to handle result propagation from other
+//! nonterminals called in the handle and also wrap our result in `Ok` or `Err` which gives
 //! us control over the error handling.
 //!
 //! # Debugging
@@ -533,13 +532,6 @@
 //!     term
 //! })
 //! ```
-//!
-//! ### Last resort
-//!
-//! In case you can't figure out where the macro is failing at compile time as an addition to the
-//! standard macro debugging approaches you can copy and paste the whole `parse_rules` macro into
-//! the file where you use it and see where the macro error is located at. This will give you a bit
-//! more descriptive compile errors instead of `the macro failed in that crate` kind of errors.
 //!
 //! # Examples
 //!
@@ -865,10 +857,10 @@ macro_rules! parse_rules {
         #[binop($affix: ident)]
         $nonterm: ident : $prim_type: ty => $primary: ident where
         $prec_type: ty => |$lhs: ident, $rhs: ident| {
-                $($op: pat | $precedence: expr => $logic: expr),+
-                $(,)*
-            }
+            $($op: pat | $precedence: expr => $logic: expr),+
             $(,)*
+        }
+        $(,)*
     } => {
         /*
         parse_expression ()
@@ -1024,6 +1016,7 @@ macro_rules! parse_rules {
         if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = $id {
             // Skip to the next branch of the nonterm
         } else {
+            let $id = $id?;
             return parse_rules!(@RULE $iter; $($rule_token)+);
         }
     };
@@ -1039,6 +1032,7 @@ macro_rules! parse_rules {
         if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = $id {
             // Skip to the next branch of the nonterm
         } else {
+            let $id = $id?;
             return Ok($logic);
         }
     };
@@ -1079,7 +1073,7 @@ macro_rules! parse_rules {
     } => {
         {
             #[allow(unused_variables)]
-            let $id = $nonterm($iter);
+            let $id = $nonterm($iter)?;
 
             parse_rules!(@RULE $iter; $($rule_token)+)
         }
@@ -1093,7 +1087,7 @@ macro_rules! parse_rules {
     } => {
         {
             #[allow(unused_variables)]
-            let $id = $nonterm($iter);
+            let $id = $nonterm($iter)?;
 
             Ok($logic)
         }

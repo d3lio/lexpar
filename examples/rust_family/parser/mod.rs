@@ -52,15 +52,15 @@ parse_rules! {
     #[fold(nodes)]
     top_level: Vec<AstNode> => {
         [node: _top_level] => {
-            nodes.push(node?);
+            nodes.push(node);
             nodes
         },
         [@] => Vec::new()
     },
 
     _top_level: AstNode => {
-        [def: def] => def?,
-        [expr: expr] => expr?
+        [def: def] => def,
+        [expr: expr] => expr
     }
 }
 
@@ -71,7 +71,6 @@ parse_rules! {
     def: AstNode => {
         // Variable definition
         [(span, Keyword(Kw::Let)), (_, Ident(name)), (_, Assign), ex: expr, (_, Semicolon)] => {
-            let ex = ex?;
             ast!(span.extend(ex.span().hi), VariableDefExpr { name, value: ex })
         }
     },
@@ -91,11 +90,11 @@ parse_rules! {
         [(span, Number(num))] => ast!(span, NumberExpr { num }),
 
         // Paren expression
-        [(_, LParen), ex: expr, (_, RParen)] => ex?,
+        [(_, LParen), ex: expr, (_, RParen)] => ex,
 
         // Variable expression or function call
         [(mut span, Ident(name)), args: call] => {
-            if let Some((call_span, args)) = args? {
+            if let Some((call_span, args)) = args {
                 span.hi = call_span.hi;
                 ast!(span, CallExpr { name, args })
             } else {
@@ -105,11 +104,7 @@ parse_rules! {
 
         // Function definition
         [proto: fn_proto, (_, LBrace), body: top_level, (rspan, RBrace)] => {
-            let proto = proto?;
-            ast!(
-                proto.span().clone().extend(rspan.hi),
-                FunctionExpr { proto, body: body? }
-            )
+            ast!(proto.span().clone().extend(rspan.hi), FunctionExpr { proto, body: body })
         }
     },
 }
@@ -121,7 +116,7 @@ parse_rules! {
     // Variable expression or function call
     call: Option<(Span, Vec<AstNode>)> => {
         [(span, LParen), args: args, (rspan, RParen)] => {
-            Some((span.extend(rspan.hi), args?))
+            Some((span.extend(rspan.hi), args))
         },
         [@] => None
     },
@@ -129,9 +124,9 @@ parse_rules! {
     // Function call arguments
     args: Vec<AstNode> => {
         [ex: expr, args: _args] => {
+            let mut args = args;
             use std::mem;
-            let mut args = args?;
-            mem::forget(mem::replace(&mut args[0], ex?));
+            mem::forget(mem::replace(&mut args[0], ex));
             args
         },
         [@] => Vec::new()
@@ -140,7 +135,7 @@ parse_rules! {
     #[fold(args)]
     _args: Vec<AstNode> => {
         [(_, Comma), ex: expr] => {
-            args.push(ex?);
+            args.push(ex);
             args
         },
         [@] => {
@@ -164,14 +159,14 @@ parse_rules! {
             params: params,
             (rspan, RParen)
         ] => {
-            ast!(span.extend(rspan.hi), FunctionProtoExpr { name, params: params? })
+            ast!(span.extend(rspan.hi), FunctionProtoExpr { name, params: params })
         }
     },
 
     // Function prototype params
     params: Vec<String> => {
         [(_, Ident(name)), params: _params] => {
-            let mut params = params?;
+            let mut params = params;
             params[0] = name;
             params
         },

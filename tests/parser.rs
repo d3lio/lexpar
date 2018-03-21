@@ -77,7 +77,7 @@ fn parser2_nonterm_call() {
             },
             entry: String => {
                 [Ident(name), Ident(a), res: ident, Integer(123)] => {
-                    res? + name.as_str() + a.as_str() + "E"
+                    res + name.as_str() + a.as_str() + "E"
                 }
             }
         }
@@ -110,12 +110,12 @@ fn parser3_epsilon_and_trailing_commas() {
             },
             i: String => {
                 [Ident(name), Ident(_), p: eps] => {
-                    name + "I" + &p?
+                    name + "I" + &p
                 },
             },
             e: String => {
                 [Ident(name), Ident(a), res: i, Integer(123)] => {
-                    res? + name.as_str() + a.as_str() + "E"
+                    res + name.as_str() + a.as_str() + "E"
                 },
                 [Integer(_)] => {
                     String::from("arm 2")
@@ -170,7 +170,7 @@ fn parser4_custom_handler() {
             },
             e: Vec<String> => {
                 [Keyword(Kw::Fn), Ident(name), params: i, Arrow] => {
-                    let mut idents: Vec<String> = params?;
+                    let mut idents: Vec<String> = params;
                     idents.insert(0, name);
                     idents
                 }
@@ -216,10 +216,10 @@ fn parser5_nonterm_as_first_rule() {
             },
             e: String => {
                 [res: wrong, Ident(name), Ident(a), Integer(123)] => {
-                    res? + name.as_str() + a.as_str() + "E"
+                    res + name.as_str() + a.as_str() + "E"
                 },
                 [res: right, Ident(name), Ident(a), Integer(123)] => {
-                    res? + name.as_str() + a.as_str() + "E"
+                    res + name.as_str() + a.as_str() + "E"
                 }
             }
         }
@@ -251,8 +251,8 @@ fn parser6_recursive_grammar() {
                 }
             },
             expr: String => {
-                [LParen, ex: expr, RParen] => { ex? },
-                [id: ident] => { id? },
+                [LParen, ex: expr, RParen] => { ex },
+                [id: ident] => { id },
                 [Integer(n)] => { n.to_string() }
             }
         }
@@ -313,7 +313,7 @@ mod looping {
 
                 expr: String => {
                     [Ident(name), Integer(n), ex: expr] => {
-                        format!("{}:{}, {}", name, n, ex?)
+                        format!("{}:{}, {}", name, n, ex)
                     },
                     [@] => { String::new() }
                 }
@@ -412,7 +412,7 @@ mod looping {
 
                 args: Vec<(String, String)> => {
                     [Ident(name), Integer(n), v: args] => {
-                        let mut args = v?;
+                        let mut args = v;
                         args.push((name, n.to_string()));
                         args
                     },
@@ -421,7 +421,7 @@ mod looping {
 
                 expr: String => {
                     [Keyword(Kw::Fn), Ident(fn_name), LParen, v: args, RParen] => {
-                        let args = v?.into_iter().rev().fold(String::new(), |acc, arg| {
+                        let args = v.into_iter().rev().fold(String::new(), |acc, arg| {
                             format!("{}, {} = {}", acc, arg.0, arg.1)
                         });
                         format!("{}({})", fn_name, if args.len() > 2 { &args[2..] } else { &args })
@@ -452,7 +452,7 @@ mod looping {
 
                 expr: String => {
                     [Keyword(Kw::Fn), Ident(fn_name), LParen, v: args, RParen] => {
-                        let args = v?.into_iter().fold(String::new(), |acc, arg| {
+                        let args = v.into_iter().fold(String::new(), |acc, arg| {
                             format!("{}, {} = {}", acc, arg.0, arg.1)
                         });
                         format!("{}({})", fn_name, if args.len() > 2 { &args[2..] } else { &args })
@@ -504,7 +504,7 @@ mod precedence {
 
                 expr: i32 => {
                     [Int(a)] => a,
-                    [LParen, binop: binop, RParen] => binop?
+                    [LParen, binop: binop, RParen] => binop
                 }
             }
 
