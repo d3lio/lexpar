@@ -268,8 +268,7 @@
 //!     term: Token;
 //!
 //!     zero_or_more: Vec<()> => {
-//!         [Something, acc: zero_or_more] => {
-//!             let mut acc = acc;
+//!         [Something, mut acc: zero_or_more] => {
 //!             acc.push(());
 //!             acc
 //!         },
@@ -337,8 +336,7 @@
 //!     term: Token;
 //!
 //!     one_or_more: Vec<()> => {
-//!         [Something, zom: zero_or_more] => {
-//!             let mut zom = zom;
+//!         [Something, mut zom: zero_or_more] => {
 //!             zom.insert(0, ());
 //!             zom
 //!         }
@@ -1009,14 +1007,15 @@ macro_rules! parse_rules {
     {
         @ROOT_RULE $iter: ident; $term_type: ty;
 
-        $id: ident : $nonterm: expr, $($rule_token: tt)+
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
     } => {
-        let $id = $nonterm($iter);
+        let __temp = $nonterm($iter);
 
-        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = $id {
+        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = __temp {
             // Skip to the next branch of the nonterm
         } else {
-            let $id = $id?;
+            let $($id)+ = __temp?;
             return parse_rules!(@RULE $iter; $($rule_token)+);
         }
     };
@@ -1025,14 +1024,15 @@ macro_rules! parse_rules {
     {
         @ROOT_RULE $iter: ident; $term_type: ty;
 
-        $id: ident : $nonterm: expr => $logic: expr
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr => $logic: expr
     } => {
-        let $id = $nonterm($iter);
+        let __temp = $nonterm($iter);
 
-        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = $id {
+        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = __temp {
             // Skip to the next branch of the nonterm
         } else {
-            let $id = $id?;
+            let $($id)+ = __temp?;
             return Ok($logic);
         }
     };
@@ -1069,11 +1069,12 @@ macro_rules! parse_rules {
     {
         @RULE $iter: ident;
 
-        $id: ident : $nonterm: expr, $($rule_token: tt)+
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
     } => {
         {
             #[allow(unused_variables)]
-            let $id = $nonterm($iter)?;
+            let $($id)+ = $nonterm($iter)?;
 
             parse_rules!(@RULE $iter; $($rule_token)+)
         }
@@ -1083,11 +1084,12 @@ macro_rules! parse_rules {
     {
         @RULE $iter: ident;
 
-        $id: ident : $nonterm: expr => $logic: expr
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr => $logic: expr
     } => {
         {
             #[allow(unused_variables)]
-            let $id = $nonterm($iter)?;
+            let $($id)+ = $nonterm($iter)?;
 
             Ok($logic)
         }

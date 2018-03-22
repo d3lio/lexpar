@@ -123,8 +123,7 @@ parse_rules! {
 
     // Function call arguments
     args: Vec<AstNode> => {
-        [ex: expr, args: _args] => {
-            let mut args = args;
+        [ex: expr, mut args: _args] => {
             use std::mem;
             mem::forget(mem::replace(&mut args[0], ex));
             args
@@ -165,8 +164,7 @@ parse_rules! {
 
     // Function prototype params
     params: Vec<String> => {
-        [(_, Ident(name)), params: _params] => {
-            let mut params = params;
+        [(_, Ident(name)), mut params: _params] => {
             params[0] = name;
             params
         },

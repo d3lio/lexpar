@@ -169,8 +169,7 @@ fn parser4_custom_handler() {
                 Ok(params)
             },
             e: Vec<String> => {
-                [Keyword(Kw::Fn), Ident(name), params: i, Arrow] => {
-                    let mut idents: Vec<String> = params;
+                [Keyword(Kw::Fn), Ident(name), mut idents: i, Arrow] => {
                     idents.insert(0, name);
                     idents
                 }
@@ -411,8 +410,7 @@ mod looping {
                 term: Token;
 
                 args: Vec<(String, String)> => {
-                    [Ident(name), Integer(n), v: args] => {
-                        let mut args = v;
+                    [Ident(name), Integer(n), mut args: args] => {
                         args.push((name, n.to_string()));
                         args
                     },
