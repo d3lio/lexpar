@@ -59,6 +59,10 @@ ast_nodes! {
         num: f64
     }
 
+    struct StringExpr {
+        string: String
+    }
+
     struct VariableExpr {
         name: String
     }

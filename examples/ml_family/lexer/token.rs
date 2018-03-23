@@ -36,6 +36,8 @@ pub enum Token {
     Comma,
     Pipe,
     Semicolon,
+    SingleQuote(String),
+    DoubleQuote(String),
 
     // Control (non-lex tokens)
 

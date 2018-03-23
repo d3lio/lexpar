@@ -11,21 +11,7 @@ use ml_family::lexer::token::Token::*;
 
 use self::transform::BlockIterator;
 
-use self::ast::{
-    AstNode,
-    BinOp,
-    NumberExpr,
-    VariableExpr,
-    FunctionProtoExpr,
-    FunctionExpr,
-    ClosureExpr,
-    CallExpr,
-    BlockExpr,
-    BinExpr,
-    IfExpr,
-    ForExpr,
-    VariableDef
-};
+use self::ast::*;
 
 type Result = ::lexpar::parser::Result<Vec<AstNode>, Term>;
 
@@ -176,6 +162,12 @@ parse_rules! {
     literal: AstNode => {
         // Number literal
         [(span, Number(num))] => ast!(span, NumberExpr { num }),
+
+        // String literal
+        [(span, SingleQuote(string))] => ast!(span, StringExpr { string }),
+
+        // String literal
+        [(span, DoubleQuote(string))] => ast!(span, StringExpr { string }),
     },
 }
 

@@ -55,6 +55,10 @@ fn fib n =
     //     a1
 
     b
+
+let s = ""
+
+let str = "fin\"ally"
 "#;
 
 fn main() {
