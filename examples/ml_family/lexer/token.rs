@@ -39,8 +39,7 @@ pub enum Token {
 
     // Control (non-lex tokens)
 
-    BlockStart, BlockEnd,
-    Delimiter,
+    BlockStart, BlockEnd, BlockCont,
 
     Unknown(String)
 }

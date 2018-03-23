@@ -3,6 +3,7 @@ pub mod ast;
 mod transform;
 
 use lexpar::lexer::{LexIter, Span};
+use lexpar::parser::ParseError;
 
 use ml_family::lexer::Term;
 use ml_family::lexer::token::Token;
@@ -57,9 +58,21 @@ macro_rules! ast {
 parse_rules! {
     term: Term;
 
+    top_level: Vec<AstNode> => |iter| {
+        let items = _top_level(iter)?;
+
+        // Explicit error handling because fold never fails with UnexpectedRoot because it must act
+        // as a Kleene star but in this case we keep matching until eof otherwise it's an error
+        if iter.peek().is_some() {
+            Err(ParseError::UnexpectedRoot)
+        } else {
+            Ok(items)
+        }
+    },
+
     #[fold(nodes)]
-    top_level: Vec<AstNode> => {
-        [node: _top_level] => {
+    _top_level: Vec<AstNode> => {
+        [node: __top_level] => {
             if let Some(node) = node {
                 nodes.push(node);
             }
@@ -68,11 +81,11 @@ parse_rules! {
         [@] => Vec::new()
     },
 
-    _top_level: Option<AstNode> => {
+    __top_level: Option<AstNode> => {
         [def: def] => Some(def),
         [expr: expr] => Some(expr),
-        [(_, Delimiter)] => None
-    }
+        [(_, BlockCont)] => None
+    },
 }
 
 // Definition and expression parsing
@@ -127,6 +140,7 @@ parse_rules! {
                 ast!(span, IfExpr { cond, then, el: None })
             }
         },
+
         // For expression
         [(mut span, KwFor), (vspan, Ident(var)), (_, KwIn), iter: expr, (_, KwDo), body: expr] => {
             span.hi = body.span.hi;
@@ -135,7 +149,7 @@ parse_rules! {
         },
 
         // Block expression
-        [(mut lspan, BlockStart), top: top_level, (rspan, BlockEnd)] => {
+        [(mut lspan, BlockStart), top: _top_level, (rspan, BlockEnd)] => {
             lspan.hi = rspan.hi;
             ast!(lspan, BlockExpr { exprs: top })
         },
@@ -162,7 +176,7 @@ parse_rules! {
     literal: AstNode => {
         // Number literal
         [(span, Number(num))] => ast!(span, NumberExpr { num }),
-    }
+    },
 }
 
 // Variable expression or function invocation
@@ -235,5 +249,5 @@ parse_rules! {
     _else: Option<AstNode> => {
         [(_, KwElse), ex: expr] => Some(ex),
         [@] => None
-    }
+    },
 }

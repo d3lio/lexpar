@@ -71,7 +71,7 @@ impl Iterator for BlockIter {
                 let tok = if let Some(depth) = token.parse_indent() {
                     let last = self.blocks.last().unwrap().clone();
                     match depth.cmp(&last) {
-                        Ordering::Equal => Token::Delimiter,
+                        Ordering::Equal => Token::BlockCont,
                         Ordering::Greater => {
                             self.blocks.push(depth);
                             Token::BlockStart

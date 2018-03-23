@@ -29,6 +29,12 @@ if a then
     else
         a
 
+if a1 then if b1 then c1 else a1
+
+// if a1 then if b1 then c1
+// else
+//     a1
+
 f ((x)) (id 1) z 1.1 -5 c
 
 let a = ||
@@ -43,6 +49,11 @@ fn fib n =
         let t = a + b
         a = b
         b = t
+
+    // if a1 then if b1 then c1
+    // else
+    //     a1
+
     b
 "#;
 
