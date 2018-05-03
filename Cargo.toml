@@ -2,6 +2,17 @@
 name = "lexpar"
 version = "0.1.0"
 authors = ["Delyan Dobrev <delqn.dobrev@gmail.com>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+description = """
+Lexer and parser crate for stable Rust. This implementation favors compile-time
+over run-time for generating grammars.
+"""
+documentation = "https://docs.rs/lexpar"
+repository = "https://github.com/d3lio/lexpar"
+homepage = "https://github.com/d3lio/lexpar"
+keywords = ["lexer", "parser"]
+categories = ["parsing"]
 
 [dependencies]
 regex = "0.2"
