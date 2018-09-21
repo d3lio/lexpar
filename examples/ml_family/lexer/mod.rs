@@ -50,7 +50,7 @@ pub fn lexer() -> Lexer<(Span, Token)> {
         r","                        => |span, _, _| (span, Comma),
         r"\|"                       => |span, _, _| (span, Pipe),
         r";"                        => |span, _, _| (span, Semicolon),
-        r"'(?:\\'|[^'])*'"          => |span, text, _| (span, SingleQuote(text[1..(text.len()-1)].to_owned())),
-        r#""(?:\\"|[^"])*""#        => |span, text, _| (span, DoubleQuote(text[1..(text.len()-1)].to_owned())),
+        r"'((?:\\'|[^'])*)'"          => |span, _, text| (span, SingleQuote(text[0].to_owned())),
+        r#""((?:\\"|[^"])*)""#        => |span, _, text| (span, DoubleQuote(text[0].to_owned())),
     ], |span, text| (span, Unknown(text.to_owned())))
 }

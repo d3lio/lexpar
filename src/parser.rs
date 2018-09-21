@@ -738,7 +738,7 @@ macro_rules! parse_rules {
             -> ::lexpar::parser::Result<$ret_type, $term_type>
         where I: Iterator<Item = $term_type>
         {
-            $(parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);)*
+            $(parse_rules!(@ROOT_RULE $iter; $($rule_token)* => $logic);)*
 
             #[allow(unreachable_code)]
             match $iter.peek() {
@@ -792,7 +792,7 @@ macro_rules! parse_rules {
                 #[allow(unused_mut)]
                 let mut $acc = $acc;
 
-                parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
+                parse_rules!(@ROOT_RULE $iter; $($rule_token)* => $logic);
 
                 #[allow(unreachable_code)]
                 Ok($acc)
@@ -804,7 +804,7 @@ macro_rules! parse_rules {
                 #[allow(unused_mut)]
                 let mut $acc = $acc;
 
-                parse_rules!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
+                parse_rules!(@ROOT_RULE $iter; $($rule_token)* => $logic);
 
                 if $iter.peek().is_some() {
                     *__ur = true;
@@ -952,7 +952,7 @@ macro_rules! parse_rules {
 
     // Epsilon
     {
-        @ROOT_RULE $iter: ident; $term_type: ty;
+        @ROOT_RULE $iter: ident;
 
         @ => $logic: expr
     } => {
@@ -961,7 +961,7 @@ macro_rules! parse_rules {
 
     // First rule and more rules
     {
-        @ROOT_RULE $iter: ident; $term_type: ty;
+        @ROOT_RULE $iter: ident;
 
         $term: pat, $($rule_token: tt)+
     } => {
@@ -983,7 +983,7 @@ macro_rules! parse_rules {
 
     // Only rule
     {
-        @ROOT_RULE $iter: ident; $term_type: ty;
+        @ROOT_RULE $iter: ident;
 
         $term: pat => $logic: expr
     } => {
@@ -1005,7 +1005,7 @@ macro_rules! parse_rules {
 
     // First nonterm and more rules
     {
-        @ROOT_RULE $iter: ident; $term_type: ty;
+        @ROOT_RULE $iter: ident;
 
         // A hack to allow the mut specifier
         $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
@@ -1022,7 +1022,7 @@ macro_rules! parse_rules {
 
     // Only nonterm
     {
-        @ROOT_RULE $iter: ident; $term_type: ty;
+        @ROOT_RULE $iter: ident;
 
         // A hack to allow the mut specifier
         $($id: ident)+ : $nonterm: expr => $logic: expr

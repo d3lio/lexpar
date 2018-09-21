@@ -184,8 +184,7 @@ parse_rules! {
             } else {
                 None
             }
-        },
-        [@] => None
+        }
     },
 
     // Function call arguments

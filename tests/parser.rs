@@ -26,7 +26,7 @@ enum Token {
 use self::Token::*;
 
 #[test]
-fn parser1_ok_eof_unexpected() {
+fn ok_eof_unexpected() {
     const EXM_STR: &'static str = "!";
     let parse = |iter: Box<Iterator<Item = (Span, Token)>>| {
         parse_rules! {
@@ -65,7 +65,7 @@ fn parser1_ok_eof_unexpected() {
 }
 
 #[test]
-fn parser2_nonterm_call() {
+fn nonterm_call() {
     let parse = |iter: Box<Iterator<Item = Token>>| {
         parse_rules! {
             term: Token;
@@ -98,7 +98,7 @@ fn parser2_nonterm_call() {
 }
 
 #[test]
-fn parser3_epsilon_and_trailing_commas() {
+fn epsilon_and_trailing_commas() {
     let parse = |iter: Box<Iterator<Item = Token>>| {
         parse_rules! {
             term: Token;
@@ -146,7 +146,7 @@ fn parser3_epsilon_and_trailing_commas() {
 }
 
 #[test]
-fn parser4_custom_handler() {
+fn custom_handler() {
     let parse = |iter: Box<Iterator<Item = Token>>| {
         parse_rules! {
             term: Token;
@@ -198,7 +198,7 @@ fn parser4_custom_handler() {
 }
 
 #[test]
-fn parser5_nonterm_as_first_rule() {
+fn nonterm_as_first_rule() {
     fn parse<I>(iter: I) -> Result<String, ParseError<Token>> where I: Iterator<Item = Token> {
         parse_rules! {
             term: Token;
@@ -239,7 +239,7 @@ fn parser5_nonterm_as_first_rule() {
 }
 
 #[test]
-fn parser6_recursive_grammar() {
+fn recursive_grammar() {
     let parse = |iter: Box<Iterator<Item = Token>>| {
         parse_rules! {
             term: Token;
@@ -305,7 +305,7 @@ mod looping {
     use super::*;
 
     #[test]
-    fn parser7_kleene_star() {
+    fn backtrack_fold() {
         let parse = |iter: Box<Iterator<Item = Token>>| {
             parse_rules! {
                 term: Token;
@@ -400,11 +400,22 @@ mod looping {
                 ]),
                 Err(ParseError::Unexpected(Ident(String::from("one"))))
             }
+
+            assert_eq! {
+                $parse(iter![
+                    Keyword(Kw::Fn),
+                    Ident(String::from("my_fn")),
+                    LParen,
+                    Ident(String::from("one")),
+                    RParen
+                ]),
+                Err(ParseError::Unexpected(RParen))
+            }
         }
     }
 
     #[test]
-    fn parser8_fn_args() {
+    fn fn_args() {
         let parse = |iter: Box<Iterator<Item = Token>>| {
             parse_rules! {
                 term: Token;
@@ -434,7 +445,7 @@ mod looping {
     }
 
     #[test]
-    fn parser9_fold_fn_args() {
+    fn fold_fn_args() {
         let parse = |iter: Box<Iterator<Item = Token>>| {
             parse_rules! {
                 term: Token;
@@ -485,7 +496,7 @@ mod precedence {
     use self::Token::*;
 
     #[test]
-    fn parser9_binop_infix_precedence_syntax() {
+    fn binop_infix_precedence_syntax() {
         let parse = |iter: Box<Iterator<Item = Token>>| {
             parse_rules! {
                 term: Token;
