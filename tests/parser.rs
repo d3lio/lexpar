@@ -2,7 +2,7 @@
 extern crate lexpar;
 
 use lexpar::lexer::Span;
-use lexpar::parser::{UnshiftIter, ParseError};
+use lexpar::parser::{UnshiftIter, ParseError, UnexpectedKind};
 
 macro_rules! iter {
     ( $($e: expr),* ) => { Box::new(vec![ $($e),* ].into_iter()) }
@@ -60,7 +60,11 @@ fn ok_eof_unexpected() {
             (Span::new(1, 2, 3), Ident("hi".to_owned())),
             (Span::new(1, 2, 3), Integer(123))
         ]),
-        Err(ParseError::Unexpected((Span::new(1, 2, 3), Integer(123))))
+        Err(ParseError::Unexpected {
+            kind: UnexpectedKind::Other,
+            nonterm: "entry".to_string(),
+            token: (Span::new(1, 2, 3), Integer(123)),
+        })
     }
 }
 
@@ -398,7 +402,11 @@ mod looping {
                     Integer(5),
                     RParen
                 ]),
-                Err(ParseError::Unexpected(Ident(String::from("one"))))
+                Err(ParseError::Unexpected {
+                    kind: UnexpectedKind::Other,
+                    nonterm: "expr".to_string(),
+                    token: Ident(String::from("one")),
+                })
             }
 
             assert_eq! {
@@ -409,7 +417,11 @@ mod looping {
                     Ident(String::from("one")),
                     RParen
                 ]),
-                Err(ParseError::Unexpected(RParen))
+                Err(ParseError::Unexpected {
+                    kind: UnexpectedKind::Other,
+                    nonterm: "args".to_string(),
+                    token: RParen,
+                })
             }
         }
     }

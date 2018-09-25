@@ -29,6 +29,12 @@ if a then
     else
         a
 
+if _a then
+    if _b then
+        _c
+else
+    _a
+
 if a1 then if b1 then c1 else a1
 
 // if a1 then if b1 then c1

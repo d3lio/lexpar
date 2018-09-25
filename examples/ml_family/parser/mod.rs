@@ -3,7 +3,7 @@ pub mod ast;
 mod transform;
 
 use lexpar::lexer::{LexIter, Span};
-use lexpar::parser::ParseError;
+use lexpar::parser::{ParseError, UnexpectedKind};
 
 use ml_family::lexer::Term;
 use ml_family::lexer::token::Token;
@@ -50,7 +50,11 @@ parse_rules! {
         // Explicit error handling because fold never fails with UnexpectedRoot because it must act
         // as a Kleene star but in this case we keep matching until eof otherwise it's an error
         if iter.peek().is_some() {
-            Err(ParseError::UnexpectedRoot)
+            Err(ParseError::Unexpected {
+                kind: UnexpectedKind::Root,
+                nonterm: "top_level".to_owned(),
+                token: iter.next().unwrap(),
+            })
         } else {
             Ok(items)
         }
