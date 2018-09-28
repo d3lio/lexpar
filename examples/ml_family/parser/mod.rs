@@ -52,7 +52,7 @@ parse_rules! {
         if iter.peek().is_some() {
             Err(ParseError::Unexpected {
                 kind: UnexpectedKind::Root,
-                nonterm: "top_level".to_owned(),
+                nonterm: "top_level",
                 token: iter.next().unwrap(),
             })
         } else {

@@ -186,7 +186,9 @@
 //!
 //! match result {
 //!     Ok(value) => { /* Do something with the value */ },
-//!     Err(ParseError::Eof) => { /* Unexpected end of input */ },
+//!     Err(ParseError::Eof {
+//!         nonterm,
+//!     }) => { /* Unexpected end of input */ },
 //!     Err(ParseError::Unexpected {
 //!         kind,
 //!         nonterm,
@@ -562,11 +564,13 @@ pub enum ParseError<T> {
     /// Unexpected token in the token stream.
     Unexpected {
         kind: UnexpectedKind,
-        nonterm: String,
+        nonterm: &'static str,
         token: T,
     },
     /// Unexpected end-of-file.
-    Eof,
+    Eof {
+        nonterm: &'static str,
+    },
 }
 
 /// The result type returned by any nonterminal.
@@ -763,10 +767,12 @@ macro_rules! parse_rules {
             match $iter.next() {
                 Some(token) => Err(::lexpar::parser::ParseError::Unexpected {
                     kind: ::lexpar::parser::UnexpectedKind::Root,
-                    nonterm: stringify!($nonterm).to_owned(),
+                    nonterm: stringify!($nonterm),
                     token,
                 }),
-                None => Err(::lexpar::parser::ParseError::Eof)
+                None => Err(::lexpar::parser::ParseError::Eof {
+                    nonterm: stringify!($nonterm),
+                })
             }
         }
     };
@@ -934,11 +940,11 @@ macro_rules! parse_rules {
                             let op = la;
                             let mut rhs = match $primary($iter) {
                                 Ok(rhs) => rhs,
-                                Err(Eof) => break,
+                                Err(Eof { .. }) => break,
                                 Err(Unexpected {
                                     kind: UnexpectedKind::Root,
-                                    nonterm: _,
                                     token,
+                                    ..
                                 }) => {
                                     $iter.unshift(token);
                                     break;
@@ -1091,10 +1097,12 @@ macro_rules! parse_rules {
             },
             Some(token) => Err(::lexpar::parser::ParseError::Unexpected {
                 kind: ::lexpar::parser::UnexpectedKind::Other,
-                nonterm: stringify!($nonterm).to_owned(),
+                nonterm: stringify!($nonterm),
                 token,
             }),
-            None => Err(::lexpar::parser::ParseError::Eof)
+            None => Err(::lexpar::parser::ParseError::Eof {
+                nonterm: stringify!($nonterm),
+            })
         }
     };
 
@@ -1108,10 +1116,12 @@ macro_rules! parse_rules {
             Some($term) => Ok($logic),
             Some(token) => Err(::lexpar::parser::ParseError::Unexpected {
                 kind: ::lexpar::parser::UnexpectedKind::Other,
-                nonterm: stringify!($nonterm).to_owned(),
+                nonterm: stringify!($nonterm),
                 token,
             }),
-            None => Err(::lexpar::parser::ParseError::Eof)
+            None => Err(::lexpar::parser::ParseError::Eof {
+                nonterm: stringify!($nonterm),
+            })
         }
     };
 

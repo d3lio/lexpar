@@ -52,7 +52,9 @@ fn ok_eof_unexpected() {
 
     assert_eq! {
         parse(iter![(Span::new(1, 2, 3), Ident("hi".to_owned()))]),
-        Err(ParseError::Eof)
+        Err(ParseError::Eof {
+            nonterm: "entry",
+        })
     }
 
     assert_eq! {
@@ -62,7 +64,7 @@ fn ok_eof_unexpected() {
         ]),
         Err(ParseError::Unexpected {
             kind: UnexpectedKind::Other,
-            nonterm: "entry".to_string(),
+            nonterm: "entry",
             token: (Span::new(1, 2, 3), Integer(123)),
         })
     }
@@ -301,7 +303,9 @@ fn recursive_grammar() {
             RParen,
             RParen
         ]),
-        Err(ParseError::Eof)
+        Err(ParseError::Eof {
+            nonterm: "expr",
+        })
     }
 }
 
@@ -362,7 +366,9 @@ mod looping {
             parse(iter![
                 Ident(String::from("one"))
             ]),
-            Err(ParseError::Eof)
+            Err(ParseError::Eof {
+                nonterm: "expr",
+            })
         }
     }
 
@@ -404,7 +410,7 @@ mod looping {
                 ]),
                 Err(ParseError::Unexpected {
                     kind: UnexpectedKind::Other,
-                    nonterm: "expr".to_string(),
+                    nonterm: "expr",
                     token: Ident(String::from("one")),
                 })
             }
@@ -419,7 +425,7 @@ mod looping {
                 ]),
                 Err(ParseError::Unexpected {
                     kind: UnexpectedKind::Other,
-                    nonterm: "args".to_string(),
+                    nonterm: "args",
                     token: RParen,
                 })
             }
