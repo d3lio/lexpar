@@ -510,10 +510,10 @@
 //!
 //! # Debugging
 //!
-//! As one of the future goals for the crate is to have a parser debug mode to know what exactly
-//! failed and where. This would lower the time spent on debugging your grammar.
+//! There is a debug version of the macro called `parse_rules_debug!`.
+//! Use it to get some debug information during execution of the parser.
 //!
-//! For now here are some approaches to making debugging more pleasant:
+//! Here are some additional approaches to making debugging more pleasant:
 //!
 //! ### Common mistakes
 //!
@@ -1095,3 +1095,505 @@ macro_rules! parse_rules {
         }
     };
 }
+
+/// Debug version of `parse_rules!`.
+///
+/// This version of the macro has the same semantics of the original macro
+/// but with some debug information displayed during execution.
+///
+/// You can pair this macro with this echo iterator
+///
+/// ```ignore
+/// iter.map(|term| {
+///     println!(=nex "{:?}", term);
+///     term
+/// })
+/// ```
+///
+/// before calling the parser to benefit of seeing the value when the parser calls next.
+///
+/// These are the current differences that `parse_rules_debug!` has:
+///
+/// * When calling a nonterm, debug information is displayed containing the name of the nonterm and
+/// the head value of the iterator.
+/// * When exiting a nonterm, debug information is displayed containing the result of the execution.
+#[macro_export]
+macro_rules! parse_rules_debug {
+    {
+        term: $term_type: ty;
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules_debug! {
+            // `iter` is necessary to be passed so that each arm has iter in its macro scope
+            @NONTERM __iter; $term_type;
+            $($nonterm_def)+
+        }
+    };
+
+    // Loop nonterms
+    //
+    // <nonterm>: <type> => { ... }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        $nonterm: ident : $ret_type: ty => {
+            $( [$($rule_token: tt)*] => $logic: expr ),+
+            $(,)*
+        },
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules_debug!(@NONTERM $iter; $term_type; $nonterm : $ret_type => {
+            $( [$($rule_token)*] => $logic ),+
+        });
+
+        parse_rules_debug!(@NONTERM $iter; $term_type; $($nonterm_def)+);
+    };
+
+    // Loop nonterm handlers
+    //
+    // <nonterm>: <type> => |<iter>| { ... }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr,
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules_debug!(@NONTERM $iter; $term_type; $nonterm : $ret_type => |$iter_name| $logic);
+
+        parse_rules_debug!(@NONTERM $iter; $term_type; $($nonterm_def)+);
+    };
+
+    // Loop folds
+    //
+    // #[fold(<acc>)] <nonterm>: <type> => { ... }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        #[fold($acc: ident)]
+        $nonterm: ident : $ret_type: ty => {
+            [$($rule_token: tt)*] => $logic: expr,
+            [@] => $acc_expr: expr
+            $(,)*
+        },
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules_debug!(@NONTERM $iter; $term_type; #[fold($acc)] $nonterm : $ret_type => {
+            [$($rule_token)*] => $logic,
+            [@] => $acc_expr
+        });
+
+        parse_rules_debug!(@NONTERM $iter; $term_type; $($nonterm_def)+);
+    };
+
+    // Loop bin ops
+    //
+    // #[binop(<affix>)] <nonterm>: <type> => { ... }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        #[binop($affix: ident)]
+        $nonterm: ident : $prim_type: ty => $primary: ident where
+        $prec_type :ty => |$lhs: ident, $rhs: ident| { $($binop_def: tt)+ },
+        $($nonterm_def: tt)+
+    } => {
+        parse_rules_debug!(@NONTERM $iter; $term_type; #[binop($affix)]
+        $nonterm: $prim_type => $primary where $prec_type => |$lhs, $rhs| { $($binop_def)+ });
+
+        parse_rules_debug!(@NONTERM $iter; $term_type; $($nonterm_def)+);
+    };
+
+    // Nonterm rules
+    //
+    // <nonterm>: <type> => { arms+ }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        $nonterm: ident : $ret_type: ty => {
+            $( [$($rule_token: tt)*] => $logic: expr ),+
+            $(,)*
+        } $(,)*
+    } => {
+        // Disable the warning since Epsilon does not use iter
+        #[allow(unused_variables)]
+        fn $nonterm<I>($iter: &mut ::lexpar::parser::UnshiftIter<I>)
+            -> ::lexpar::parser::Result<$ret_type, $term_type>
+        where I: Iterator<Item = $term_type>
+        {
+            fn internal_debug<I>($iter: &mut ::lexpar::parser::UnshiftIter<I>)
+                -> ::lexpar::parser::Result<$ret_type, $term_type>
+            where I: Iterator<Item = $term_type> {
+                $(parse_rules_debug!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);)*
+
+                #[allow(unreachable_code)]
+                match $iter.peek() {
+                    Some(_) => Err(::lexpar::parser::ParseError::UnexpectedRoot),
+                    None => Err(::lexpar::parser::ParseError::Eof)
+                }
+            }
+
+            let name = stringify!($nonterm);
+            println!("+cal {} head: {:?}", name, $iter.peek());
+            let res = internal_debug($iter);
+            println!("-ret {} result: {:?}", name, res);
+            return res;
+        }
+    };
+
+    // Nonterm handler
+    //
+    // |iter| => expr
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        $nonterm: ident : $ret_type: ty => |$iter_name: ident| $logic: expr $(,)*
+    } => {
+        fn $nonterm<I>($iter_name: &mut ::lexpar::parser::UnshiftIter<I>)
+            -> ::lexpar::parser::Result<$ret_type, $term_type>
+        where I: Iterator<Item = $term_type>
+        {
+            fn internal_debug<I>($iter_name: &mut ::lexpar::parser::UnshiftIter<I>)
+                -> ::lexpar::parser::Result<$ret_type, $term_type>
+            where I: Iterator<Item = $term_type> {
+                $logic
+            }
+
+            let name = stringify!($nonterm);
+            println!("+cal {} head: {:?}", name, $iter.peek());
+            let res = internal_debug($iter);
+            println!("-ret {} result: {:?}", name, res);
+            return res;
+        }
+    };
+
+    // Fold syntax
+    //
+    // #[fold(<acc>)] <nonterm>: <type> => {
+    //     [ rules+ ] => logic,
+    //     [@] => start_acc
+    // }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        #[fold($acc: ident)]
+        $nonterm: ident : $ret_type: ty => {
+            [$($rule_token: tt)*] => $logic: expr,
+            [@] => $acc_expr: expr
+            $(,)*
+        } $(,)*
+    } => {
+        #[allow(unused_variables)]
+        parse_rules_debug!(@NONTERM $iter; $term_type; $nonterm: $ret_type => |$iter| {
+            use ::lexpar::parser::{self, UnshiftIter};
+
+            type ParserResult = parser::Result<$ret_type, $term_type>;
+
+            fn matcher_root<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type) -> ParserResult
+            where I: Iterator<Item = $term_type>
+            {
+                #[allow(unused_mut)]
+                let mut $acc = $acc;
+
+                parse_rules_debug!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
+
+                #[allow(unreachable_code)]
+                Ok($acc)
+            }
+
+            fn matcher<I>($iter: &mut UnshiftIter<I>, $acc: $ret_type, __ur: &mut bool) -> ParserResult
+            where I: Iterator<Item = $term_type>
+            {
+                #[allow(unused_mut)]
+                let mut $acc = $acc;
+
+                parse_rules_debug!(@ROOT_RULE $iter; $term_type; $($rule_token)* => $logic);
+
+                if $iter.peek().is_some() {
+                    *__ur = true;
+                }
+
+                #[allow(unreachable_code)]
+                Ok($acc)
+            }
+
+            let mut acc = $acc_expr;
+            let mut unexpected_root = false;
+
+            macro_rules! matcher {
+                ($matcher: expr => $end_cond: expr) => {
+                    match $matcher {
+                        Ok(res) => {
+                            if $end_cond {
+                                return Ok(res);
+                            } else {
+                                acc = res;
+                            }
+                        },
+                        Err(err) => return Err(err)
+                    }
+                };
+            }
+
+            matcher!((matcher_root)($iter, acc) => $iter.peek().is_none());
+
+            loop {
+                matcher!{
+                    (matcher)($iter, acc, &mut unexpected_root) =>
+                    $iter.peek().is_none() || unexpected_root
+                }
+            }
+        });
+    };
+
+    // Infix binop syntax
+    //
+    // #[binop(infix)] <nonterm>: <type> => <primary_nonterm>
+    // where <prec_type> => |<lhs>, <rhs>| {
+    //     (<op> | <precedence> => logic),+
+    // }
+    {
+        @NONTERM $iter: ident; $term_type: ty;
+
+        #[binop($affix: ident)]
+        $nonterm: ident : $prim_type: ty => $primary: ident where
+        $prec_type: ty => |$lhs: ident, $rhs: ident| {
+            $($op: pat | $precedence: expr => $logic: expr),+
+            $(,)*
+        }
+        $(,)*
+    } => {
+        /*
+        parse_expression ()
+            return parse_binop (parse_primary (), 0)
+
+        parse_binop (lhs, min_precedence)
+            lookahead := peek next token
+            while lookahead is a binary operator whose precedence is >= min_precedence
+                op := lookahead
+                advance to next token
+                rhs := parse_primary ()
+                lookahead := peek next token
+                while lookahead is a binary operator whose precedence is greater
+                        than op's, or a right-associative operator
+                        whose precedence is equal to op's
+                    rhs := parse_binop (rhs, lookahead's precedence)
+                    lookahead := peek next token
+                lhs := the result of applying op with operands lhs and rhs
+            return lhs
+        */
+
+        parse_rules_debug!(@NONTERM $iter; $term_type; $nonterm: $prim_type => |$iter| {
+            use ::lexpar::parser::{self, UnshiftIter};
+            use ::lexpar::parser::ParseError::*;
+
+            type ParserResult = parser::Result<$prim_type, $term_type>;
+
+            fn prec(term: &$term_type) -> Option<$prec_type> {
+                #[allow(unused_variables)]
+                match term {
+                    $($op => Some($precedence)),+,
+                    _ => None
+                }
+            }
+
+            fn eval(__term: &$term_type, $lhs: $prim_type, $rhs: $prim_type) -> $prim_type {
+                match __term {
+                    $($op => $logic),+,
+                    _ => unreachable!()
+                }
+            }
+
+            fn parse_binop<I>($iter: &mut UnshiftIter<I>, mut lhs: $prim_type, min_prec: $prec_type)
+                -> ParserResult where I: Iterator<Item = $term_type>
+            {
+                while let Some(la) = $iter.next() {
+                    match prec(&la) {
+                        Some(precedence) if precedence >= min_prec => {
+                            let op = la;
+                            let mut rhs = match $primary($iter) {
+                                Ok(rhs) => rhs,
+                                Err(Eof) | Err(UnexpectedRoot) => break,
+                                Err(err) => return Err(err)
+                            };
+
+                            while let Some(la_inner) = $iter.next() {
+                                match prec(&la_inner) {
+                                    Some(next_prec) if next_prec > precedence => {
+                                        $iter.unshift(la_inner);
+                                        rhs = match parse_binop($iter, rhs, next_prec) {
+                                            Ok(rhs) => rhs,
+                                            Err(err) => return Err(err)
+                                        };
+                                    },
+                                    _ => {
+                                        $iter.unshift(la_inner);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            lhs = eval(&op, lhs, rhs);
+                        },
+                        _ => {
+                            $iter.unshift(la);
+                            break;
+                        }
+                    }
+                }
+
+                Ok(lhs)
+            }
+
+            // with the + repetition it's guaranteed that there will be at least one element
+            let min_prec = vec![ $($precedence),+ ].into_iter().min().unwrap();
+
+            let lhs = $primary($iter)?;
+            parse_binop($iter, lhs, min_prec)
+        });
+    };
+
+    // Epsilon
+    {
+        @ROOT_RULE $iter: ident; $term_type: ty;
+
+        @ => $logic: expr
+    } => {
+        return Ok($logic);
+    };
+
+    // First rule and more rules
+    {
+        @ROOT_RULE $iter: ident; $term_type: ty;
+
+        $term: pat, $($rule_token: tt)+
+    } => {
+        let item = $iter.next();
+
+        match item {
+            Some($term) => {
+                return parse_rules_debug!(@RULE $iter; $($rule_token)+);
+            },
+            // Skip to the next branch of the nonterm
+            Some(_) => {
+                $iter.unshift(item.unwrap());
+            },
+            // Let the nonterm handle the eof
+            // This is so we can enter an Epsilon root rule if it exists
+            None => ()
+        }
+    };
+
+    // Only rule
+    {
+        @ROOT_RULE $iter: ident; $term_type: ty;
+
+        $term: pat => $logic: expr
+    } => {
+        let item = $iter.next();
+
+        match item {
+            Some($term) => {
+                return Ok($logic);
+            },
+            // Skip to the next branch of the nonterm
+            Some(_) => {
+                $iter.unshift(item.unwrap());
+            },
+            // Let the nonterm handle the eof
+            // This is so we can enter an Epsilon root rule if it exists
+            None => ()
+        }
+    };
+
+    // First nonterm and more rules
+    {
+        @ROOT_RULE $iter: ident; $term_type: ty;
+
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
+    } => {
+        let __temp = $nonterm($iter);
+
+        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = __temp {
+            // Skip to the next branch of the nonterm
+        } else {
+            let $($id)+ = __temp?;
+            return parse_rules_debug!(@RULE $iter; $($rule_token)+);
+        }
+    };
+
+    // Only nonterm
+    {
+        @ROOT_RULE $iter: ident; $term_type: ty;
+
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr => $logic: expr
+    } => {
+        let __temp = $nonterm($iter);
+
+        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = __temp {
+            // Skip to the next branch of the nonterm
+        } else {
+            let $($id)+ = __temp?;
+            return Ok($logic);
+        }
+    };
+
+    // One and more rules
+    {
+        @RULE $iter: ident;
+
+        $term: pat, $($rule_token: tt)+
+    } => {
+        match $iter.next() {
+            Some($term) => {
+                parse_rules_debug!(@RULE $iter; $($rule_token)+)
+            },
+            Some(u) => Err(::lexpar::parser::ParseError::Unexpected(u)),
+            None => Err(::lexpar::parser::ParseError::Eof)
+        }
+    };
+
+    // Last rule
+    {
+        @RULE $iter: ident;
+
+        $term: pat => $logic: expr
+    } => {
+        match $iter.next() {
+            Some($term) => Ok($logic),
+            Some(u) => Err(::lexpar::parser::ParseError::Unexpected(u)),
+            None => Err(::lexpar::parser::ParseError::Eof)
+        }
+    };
+
+    // Nonterm and more rules
+    {
+        @RULE $iter: ident;
+
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
+    } => {
+        {
+            #[allow(unused_variables)]
+            let $($id)+ = $nonterm($iter)?;
+
+            parse_rules_debug!(@RULE $iter; $($rule_token)+)
+        }
+    };
+
+    // Last nonterm
+    {
+        @RULE $iter: ident;
+
+        // A hack to allow the mut specifier
+        $($id: ident)+ : $nonterm: expr => $logic: expr
+    } => {
+        {
+            #[allow(unused_variables)]
+            let $($id)+ = $nonterm($iter)?;
+
+            Ok($logic)
+        }
+    };
+}
+
