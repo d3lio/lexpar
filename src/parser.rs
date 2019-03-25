@@ -527,13 +527,10 @@
 //!
 //! ### EchoIterator
 //!
-//! You can create an echo iterator with a simple map to print each term that is used
+//! You can create an echo iterator with a simple inspect to print each term that is used
 //!
 //! ```ignore
-//! iter.map(|term| {
-//!     println!("{:?}", term);
-//!     term
-//! })
+//! iter.inspect(|term| println!("{:?}", term))
 //! ```
 //!
 //! # Examples
@@ -949,7 +946,7 @@ macro_rules! parse_rules {
                                     $iter.unshift(token);
                                     break;
                                 },
-                                Err(err) => return Err(err)
+                                Err(err) => return Err(err),
                             };
 
                             while let Some(la_inner) = $iter.next() {
@@ -1052,8 +1049,8 @@ macro_rules! parse_rules {
 
         if let Err(::lexpar::parser::ParseError::Unexpected {
             kind: ::lexpar::parser::UnexpectedKind::Root,
-            nonterm: _,
             token,
+            ..
         }) = __temp {
             $iter.unshift(token);
             // Skip to the next branch of the nonterm
@@ -1074,8 +1071,8 @@ macro_rules! parse_rules {
 
         if let Err(::lexpar::parser::ParseError::Unexpected {
             kind: ::lexpar::parser::UnexpectedKind::Root,
-            nonterm: _,
             token,
+            ..
         }) = __temp {
             $iter.unshift(token);
             // Skip to the next branch of the nonterm
@@ -1102,7 +1099,7 @@ macro_rules! parse_rules {
             }),
             None => Err(::lexpar::parser::ParseError::Eof {
                 nonterm: stringify!($nonterm),
-            })
+            }),
         }
     };
 
@@ -1121,7 +1118,7 @@ macro_rules! parse_rules {
             }),
             None => Err(::lexpar::parser::ParseError::Eof {
                 nonterm: stringify!($nonterm),
-            })
+            }),
         }
     };
 
@@ -1161,13 +1158,10 @@ macro_rules! parse_rules {
 /// This version of the macro has the same semantics of the original macro
 /// but with some debug information displayed during execution.
 ///
-/// You can pair this macro with this echo iterator
+/// You can pair this macro with an inspect
 ///
 /// ```ignore
-/// iter.map(|term| {
-///     println!(=nex "{:?}", term);
-///     term
-/// })
+/// iter.inspect(|term| println!(=nex "{:?}", term))
 /// ```
 ///
 /// before calling the parser to benefit of seeing the value when the parser calls next.
@@ -1281,14 +1275,19 @@ macro_rules! parse_rules_debug {
         {
             fn internal_debug<I>($iter: &mut ::lexpar::parser::UnshiftIter<I>)
                 -> ::lexpar::parser::Result<$ret_type, $term_type>
-            where I: Iterator<Item = $term_type>
-            {
-                $(parse_rules_debug!(@ROOT_RULE $iter; $($rule_token)* => $logic);)*
+            where I: Iterator<Item = $term_type> {
+                $(parse_rules_debug!(@ROOT_RULE $iter; $nonterm; $($rule_token)* => $logic);)*
 
                 #[allow(unreachable_code)]
-                match $iter.peek() {
-                    Some(_) => Err(::lexpar::parser::ParseError::UnexpectedRoot),
-                    None => Err(::lexpar::parser::ParseError::Eof)
+                match $iter.next() {
+                    Some(token) => Err(::lexpar::parser::ParseError::Unexpected {
+                        kind: ::lexpar::parser::UnexpectedKind::Root,
+                        nonterm: stringify!($nonterm),
+                        token,
+                    }),
+                    None => Err(::lexpar::parser::ParseError::Eof {
+                        nonterm: stringify!($nonterm),
+                    })
                 }
             }
 
@@ -1296,7 +1295,7 @@ macro_rules! parse_rules_debug {
             println!("+cal {} head: {:?}", name, $iter.peek());
             let res = internal_debug($iter);
             println!("-ret {} result: {:?}", name, res);
-            return res;
+            res
         }
     };
 
@@ -1322,7 +1321,7 @@ macro_rules! parse_rules_debug {
             println!("+cal {} head: {:?}", name, $iter_name.peek());
             let res = internal_debug($iter_name);
             println!("-ret {} result: {:?}", name, res);
-            return res;
+            res
         }
     };
 
@@ -1354,7 +1353,7 @@ macro_rules! parse_rules_debug {
                 #[allow(unused_mut)]
                 let mut $acc = $acc;
 
-                parse_rules_debug!(@ROOT_RULE $iter; $($rule_token)* => $logic);
+                parse_rules_debug!(@ROOT_RULE $iter; $nonterm; $($rule_token)* => $logic);
 
                 #[allow(unreachable_code)]
                 Ok($acc)
@@ -1366,7 +1365,7 @@ macro_rules! parse_rules_debug {
                 #[allow(unused_mut)]
                 let mut $acc = $acc;
 
-                parse_rules_debug!(@ROOT_RULE $iter; $($rule_token)* => $logic);
+                parse_rules_debug!(@ROOT_RULE $iter; $nonterm; $($rule_token)* => $logic);
 
                 if $iter.peek().is_some() {
                     *__ur = true;
@@ -1445,6 +1444,7 @@ macro_rules! parse_rules_debug {
         parse_rules_debug!(@NONTERM $iter; $term_type; $nonterm: $prim_type => |$iter| {
             use ::lexpar::parser::{self, UnshiftIter};
             use ::lexpar::parser::ParseError::*;
+            use ::lexpar::parser::UnexpectedKind;
 
             type ParserResult = parser::Result<$prim_type, $term_type>;
 
@@ -1472,8 +1472,16 @@ macro_rules! parse_rules_debug {
                             let op = la;
                             let mut rhs = match $primary($iter) {
                                 Ok(rhs) => rhs,
-                                Err(Eof) | Err(UnexpectedRoot) => break,
-                                Err(err) => return Err(err)
+                                Err(Eof { .. }) => break,
+                                Err(Unexpected {
+                                    kind: UnexpectedKind::Root,
+                                    token,
+                                    ..
+                                }) => {
+                                    $iter.unshift(token);
+                                    break;
+                                },
+                                Err(err) => return Err(err),
                             };
 
                             while let Some(la_inner) = $iter.next() {
@@ -1514,7 +1522,7 @@ macro_rules! parse_rules_debug {
 
     // Epsilon
     {
-        @ROOT_RULE $iter: ident;
+        @ROOT_RULE $iter: ident; $nonterm: ident;
 
         @ => $logic: expr
     } => {
@@ -1523,7 +1531,7 @@ macro_rules! parse_rules_debug {
 
     // First rule and more rules
     {
-        @ROOT_RULE $iter: ident;
+        @ROOT_RULE $iter: ident; $nonterm: ident;
 
         $term: pat, $($rule_token: tt)+
     } => {
@@ -1531,7 +1539,7 @@ macro_rules! parse_rules_debug {
 
         match item {
             Some($term) => {
-                return parse_rules_debug!(@RULE $iter; $($rule_token)+);
+                return parse_rules_debug!(@RULE $iter; $nonterm; $($rule_token)+);
             },
             // Skip to the next branch of the nonterm
             Some(_) => {
@@ -1545,7 +1553,7 @@ macro_rules! parse_rules_debug {
 
     // Only rule
     {
-        @ROOT_RULE $iter: ident;
+        @ROOT_RULE $iter: ident; $nonterm: ident;
 
         $term: pat => $logic: expr
     } => {
@@ -1567,31 +1575,41 @@ macro_rules! parse_rules_debug {
 
     // First nonterm and more rules
     {
-        @ROOT_RULE $iter: ident;
+        @ROOT_RULE $iter: ident; $parent_nonterm: ident;
 
         // A hack to allow the mut specifier
         $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
     } => {
         let __temp = $nonterm($iter);
 
-        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = __temp {
+        if let Err(::lexpar::parser::ParseError::Unexpected {
+            kind: ::lexpar::parser::UnexpectedKind::Root,
+            token,
+            ..
+        }) = __temp {
+            $iter.unshift(token);
             // Skip to the next branch of the nonterm
         } else {
             let $($id)+ = __temp?;
-            return parse_rules_debug!(@RULE $iter; $($rule_token)+);
+            return parse_rules_debug!(@RULE $iter; $parent_nonterm; $($rule_token)+);
         }
     };
 
     // Only nonterm
     {
-        @ROOT_RULE $iter: ident;
+        @ROOT_RULE $iter: ident; $parent_nonterm: ident;
 
         // A hack to allow the mut specifier
         $($id: ident)+ : $nonterm: expr => $logic: expr
     } => {
         let __temp = $nonterm($iter);
 
-        if let Err(::lexpar::parser::ParseError::UnexpectedRoot) = __temp {
+        if let Err(::lexpar::parser::ParseError::Unexpected {
+            kind: ::lexpar::parser::UnexpectedKind::Root,
+            token,
+            ..
+        }) = __temp {
+            $iter.unshift(token);
             // Skip to the next branch of the nonterm
         } else {
             let $($id)+ = __temp?;
@@ -1601,35 +1619,47 @@ macro_rules! parse_rules_debug {
 
     // One and more rules
     {
-        @RULE $iter: ident;
+        @RULE $iter: ident; $nonterm: ident;
 
         $term: pat, $($rule_token: tt)+
     } => {
         match $iter.next() {
             Some($term) => {
-                parse_rules_debug!(@RULE $iter; $($rule_token)+)
+                parse_rules_debug!(@RULE $iter; $nonterm; $($rule_token)+)
             },
-            Some(u) => Err(::lexpar::parser::ParseError::Unexpected(u)),
-            None => Err(::lexpar::parser::ParseError::Eof)
+            Some(token) => Err(::lexpar::parser::ParseError::Unexpected {
+                kind: ::lexpar::parser::UnexpectedKind::Other,
+                nonterm: stringify!($nonterm),
+                token,
+            }),
+            None => Err(::lexpar::parser::ParseError::Eof {
+                nonterm: stringify!($nonterm),
+            }),
         }
     };
 
     // Last rule
     {
-        @RULE $iter: ident;
+        @RULE $iter: ident; $nonterm: ident;
 
         $term: pat => $logic: expr
     } => {
         match $iter.next() {
             Some($term) => Ok($logic),
-            Some(u) => Err(::lexpar::parser::ParseError::Unexpected(u)),
-            None => Err(::lexpar::parser::ParseError::Eof)
+            Some(token) => Err(::lexpar::parser::ParseError::Unexpected {
+                kind: ::lexpar::parser::UnexpectedKind::Other,
+                nonterm: stringify!($nonterm),
+                token,
+            }),
+            None => Err(::lexpar::parser::ParseError::Eof {
+                nonterm: stringify!($nonterm),
+            }),
         }
     };
 
     // Nonterm and more rules
     {
-        @RULE $iter: ident;
+        @RULE $iter: ident; $parent_nonterm: ident;
 
         // A hack to allow the mut specifier
         $($id: ident)+ : $nonterm: expr, $($rule_token: tt)+
@@ -1638,13 +1668,13 @@ macro_rules! parse_rules_debug {
             #[allow(unused_variables)]
             let $($id)+ = $nonterm($iter)?;
 
-            parse_rules_debug!(@RULE $iter; $($rule_token)+)
+            parse_rules_debug!(@RULE $iter; $parent_nonterm; $($rule_token)+)
         }
     };
 
     // Last nonterm
     {
-        @RULE $iter: ident;
+        @RULE $iter: ident; $parent_nonterm: ident;
 
         // A hack to allow the mut specifier
         $($id: ident)+ : $nonterm: expr => $logic: expr
