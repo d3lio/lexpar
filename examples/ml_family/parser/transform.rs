@@ -69,6 +69,13 @@ impl Iterator for BlockIter {
         } else {
             self.iter.next().map(|(span, token)| {
                 let tok = if let Some(depth) = token.parse_indent() {
+                    if depth == 0 {
+                        if let Token::Whitespace(space) = token {
+                            if space == "\n" {
+                                return (span, Token::BlockCont);
+                            }
+                        }
+                    }
                     let last = self.blocks.last().unwrap().clone();
                     match depth.cmp(&last) {
                         Ordering::Equal => Token::BlockCont,
